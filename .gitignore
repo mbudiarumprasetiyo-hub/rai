@@ -9,3 +9,7 @@ server.js.before-*
 script.backup.js
 style.backup.css
 test-rai.txt
+public/*.bak
+public/*.backup*
+public/*.BEFORE-*
+public/*.before-*
