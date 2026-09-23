@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+
+# backup/debug files
+*.backup*
+*.broken
+server.js.before-*
+script.backup.js
+style.backup.css
+test-rai.txt

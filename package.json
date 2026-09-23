@@ -1,0 +1,24 @@
+{
+  "name": "rai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "NODE_OPTIONS=--dns-result-order=ipv4first node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^2.17.1",
+    "dotenv": "^17.4.2",
+    "exifr": "^7.1.3",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "googleapis": "^181.0.0",
+    "groq-sdk": "^1.6.0",
+    "multer": "^2.4.0"
+  }
+}
