@@ -13,3 +13,21 @@ public/*.bak
 public/*.backup*
 public/*.BEFORE-*
 public/*.before-*
+
+# RAI local data and sensitive sessions
+sessions/
+.env.*
+!.env.example
+
+# Local backups
+*.bak
+*.bak-*
+*.save
+*.backup
+*.broken
+
+# Local test/debug files
+rai-test-image.json
+rai-monitor-block.txt
+rai-monitor-css.txt
+rai-html-monitor.patch

@@ -2758,3 +2758,106 @@ html.rai-no-animations *::after {
     pointer-events: auto !important;
 }
 
+
+/* RAI GOOGLE LOGIN */
+.rai-setting-account {
+    margin-top: 18px;
+}
+
+.rai-setting-account > label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    opacity: 0.75;
+}
+
+.rai-google-login {
+    width: 100%;
+    min-height: 62px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 13px;
+    border: 1px solid rgba(0, 255, 180, 0.28);
+    border-radius: 12px;
+    background: rgba(0, 20, 25, 0.72);
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: 0.2s ease;
+}
+
+.rai-google-login:hover {
+    border-color: rgba(0, 255, 180, 0.7);
+    transform: translateY(-1px);
+    box-shadow: 0 0 18px rgba(0, 255, 180, 0.14);
+}
+
+.rai-google-login:active {
+    transform: scale(0.98);
+}
+
+.rai-google-logo {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.rai-google-logo svg {
+    width: 25px;
+    height: 25px;
+}
+
+.rai-google-text {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.rai-google-text strong {
+    font-size: 12px;
+    letter-spacing: 0.8px;
+}
+
+.rai-google-text small {
+    font-size: 10px;
+    opacity: 0.58;
+}
+
+.rai-google-arrow {
+    font-size: 25px;
+    opacity: 0.65;
+    line-height: 1;
+}
+
+
+@keyframes raiResponseFinished {
+    0% {
+        filter: brightness(1);
+    }
+
+    35% {
+        filter: brightness(1.7);
+    }
+
+    100% {
+        filter: brightness(1);
+    }
+}
+
+body.rai-response-finished {
+    animation: raiResponseFinished 0.9s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.rai-response-finished {
+        animation: none;
+    }
+}

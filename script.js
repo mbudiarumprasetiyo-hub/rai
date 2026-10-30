@@ -1562,10 +1562,133 @@ function cleanImageGenerationPrompt(text) {
 }
 
 
+
+function showGoogleLoginPrompt() {
+    const old = document.getElementById("raiGoogleLoginPrompt");
+    if (old) old.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "raiGoogleLoginPrompt";
+
+    overlay.innerHTML = `
+        <div style="
+            position:fixed;
+            inset:0;
+            z-index:99999;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            padding:20px;
+            background:rgba(0,0,0,.72);
+            backdrop-filter:blur(8px);
+        ">
+            <div style="
+                width:min(400px,100%);
+                padding:28px;
+                border:1px solid rgba(0,255,180,.35);
+                border-radius:18px;
+                background:#06110f;
+                color:#d8fff4;
+                text-align:center;
+                box-shadow:0 0 40px rgba(0,255,180,.12);
+                font-family:'Courier New',monospace;
+            ">
+                <div style="
+                    font-size:22px;
+                    font-weight:900;
+                    letter-spacing:3px;
+                    color:#00ffb4;
+                    margin-bottom:10px;
+                ">
+                    FITUR TERKUNCI
+                </div>
+
+                <div style="
+                    font-size:11px;
+                    line-height:1.7;
+                    opacity:.75;
+                    margin-bottom:22px;
+                ">
+                    Login dengan Google untuk membuka
+                    semua fitur RAI ENGGINER.
+                </div>
+
+                <button
+                    type="button"
+                    onclick="window.location.href='/auth/google'"
+                    style="
+                        width:100%;
+                        min-height:52px;
+                        border:1px solid #00ffb4;
+                        border-radius:11px;
+                        background:rgba(0,255,180,.08);
+                        color:#00ffb4;
+                        font-family:inherit;
+                        font-size:11px;
+                        font-weight:700;
+                        letter-spacing:1.5px;
+                        cursor:pointer;
+                    "
+                >
+                    LOGIN WITH GOOGLE
+                </button>
+
+                <button
+                    type="button"
+                    onclick="document.getElementById('raiGoogleLoginPrompt').remove()"
+                    style="
+                        width:100%;
+                        min-height:42px;
+                        margin-top:10px;
+                        border:0;
+                        background:transparent;
+                        color:#8aaaa3;
+                        font-family:inherit;
+                        font-size:10px;
+                        letter-spacing:1px;
+                        cursor:pointer;
+                    "
+                >
+                    NANTI SAJA
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+}
+
+
+async function checkRAILogin() {
+    try {
+        const response = await fetch("/api/auth/me", {
+            credentials: "same-origin"
+        });
+
+        if (!response.ok) {
+            return false;
+        }
+
+        const data = await response.json();
+        return data.loggedIn === true;
+
+    } catch (error) {
+        console.error("RAI AUTH CHECK ERROR:", error);
+        return false;
+    }
+}
+
 async function generateImageFromChat(
     message,
     userImage
 ) {
+
+    const loggedIn = await checkRAILogin();
+
+    if (!loggedIn) {
+        showGoogleLoginPrompt();
+        return;
+    }
     if (userImage) {
         return false;
     }
@@ -1650,6 +1773,14 @@ async function generateImageFromChat(
         }
 
         if (!response.ok) {
+            if (
+                response.status === 401 &&
+                data.error === "LOGIN_REQUIRED"
+            ) {
+                showGoogleLoginPrompt();
+                return;
+            }
+
             throw new Error(
                 data.error ||
                 `HTTP ${response.status}`
@@ -1754,6 +1885,26 @@ async function generateImageFromChat(
             return true;
         }
 
+        if (
+            error?.message === "LOGIN_REQUIRED" ||
+            String(error?.message || "").includes("LOGIN_REQUIRED")
+        ) {
+            console.log(
+                "RAI IMAGE: LOGIN REQUIRED"
+            );
+
+            typing.style.display =
+                "none";
+
+            if (imageParagraph) {
+                imageParagraph.remove();
+            }
+
+            showGoogleLoginPrompt();
+
+            return true;
+        }
+
         console.error(
             "RAI IMAGE ERROR:",
             error
@@ -1844,6 +1995,15 @@ async function sendMessage() {
             "RAI ROUTER: IMAGE GENERATION"
         );
 
+        // CEK LOGIN SEBELUM MEMPROSES GENERATE IMAGE
+        const loggedIn = await checkRAILogin();
+
+        if (!loggedIn) {
+            console.log("RAI ROUTER: GOOGLE LOGIN REQUIRED");
+            showGoogleLoginPrompt();
+            return;
+        }
+
         const sendBtn =
             document.getElementById("sendBtn");
 
@@ -1852,6 +2012,15 @@ async function sendMessage() {
             sendBtn.classList.add("stop-mode");
             sendBtn.title = "STOP RAI";
             sendBtn.onclick = stopRAI;
+        }
+
+        // CEK LOGIN SEBELUM MEMPROSES IMAGE GENERATION
+        const loggedIn = await checkRAILogin();
+
+        if (!loggedIn) {
+            console.log("RAI ROUTER: GOOGLE LOGIN REQUIRED");
+            showGoogleLoginPrompt();
+            return;
         }
 
         addMessage(
@@ -2155,6 +2324,14 @@ async function sendMessage() {
             saveAIMessage(
                 receivedText
             );
+
+            if (typeof playRAIFinishAnimation === "function") {
+                playRAIFinishAnimation();
+            }
+
+            if (typeof notifyRAIFinished === "function") {
+                notifyRAIFinished();
+            }
         }
 
     } catch (error) {

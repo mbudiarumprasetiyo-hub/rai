@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAI — Republik Of AI</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20261003-layoutfix4">
 </head>
 
 <body>
@@ -71,6 +71,33 @@
             type="button"
             onclick="toggleRAISound()"
         >OFF</button>
+    </div>
+
+    <div class="rai-setting-account">
+        <label>ACCOUNT</label>
+
+        <div class="rai-google-login">
+            <span class="rai-google-logo">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="#4285F4" d="M21.35 12.27c0-.79-.07-1.55-.2-2.27H12v4.3h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.42z"/>
+                    <path fill="#34A853" d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.7-1.72-5.47-4.03H3.28v2.53A9.75 9.75 0 0 0 12 21.75z"/>
+                    <path fill="#FBBC05" d="M6.53 13.83A5.86 5.86 0 0 1 6.22 12c0-.64.11-1.26.31-1.83V7.64H3.28A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.05 1.03 4.36l3.25-2.53z"/>
+                    <path fill="#EA4335" d="M12 6.14c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.83 3.1 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.72 5.39l3.25 2.53C7.3 7.86 9.46 6.14 12 6.14z"/>
+                </svg>
+            </span>
+
+            <span class="rai-google-text">
+                <strong>LOGIN WITH GOOGLE</strong>
+                <small>Sign in to your RAI account</small>
+            </span>
+
+            <button
+                type="button"
+                class="rai-google-arrow"
+                onclick="window.location.href='/auth/google'"
+                aria-label="Login dengan Google"
+            >›</button>
+        </div>
     </div>
 
     <div class="rai-settings-actions">
@@ -155,15 +182,21 @@
 
             </div>
 
-            <div class="core">
-                <div class="core-ring ring1"></div>
-                <div class="core-ring ring2"></div>
-                <div class="core-ring ring3"></div>
+            <div class="core-system-wrap">
 
-                <div class="core-center">
-                    <span>RAI</span>
-                    <small>AI CORE</small>
+                <div class="core">
+                    <div class="core-ring ring1"></div>
+                    <div class="core-ring ring2"></div>
+                    <div class="core-ring ring3"></div>
+
+                    <div class="core-center">
+                        <span>RAI</span>
+                        <small>AI CORE</small>
+                    </div>
                 </div>
+
+
+
             </div>
 
         </section>
@@ -173,28 +206,45 @@
             <aside class="sidebar">
 
                 <div class="side-title">
-                    <span>◈</span> SYSTEM
+                    <span>◈</span> HARD WARE SYSTEM INFORMATION
                 </div>
 
                 <div class="system-card">
                     <span>CPU</span>
-                    <strong id="cpu">37%</strong>
+                    <strong id="cpu">--%</strong>
+                
                     <div class="progress">
                         <i id="cpuBar"></i>
                     </div>
                 </div>
-
+                
                 <div class="system-card">
                     <span>MEMORY</span>
-                    <strong id="memory">61%</strong>
+                    <strong id="memory">--%</strong>
+                
                     <div class="progress">
                         <i id="memoryBar"></i>
                     </div>
                 </div>
-
+                
                 <div class="system-card">
-                    <span>NEURAL CORE</span>
-                    <strong class="green">ACTIVE</strong>
+                    <span>BATTERY</span>
+                    <strong id="battery">--%</strong>
+                
+                    <div class="progress">
+                        <i id="batteryBar"></i>
+                    </div>
+                
+                    <small id="batteryStatus">CHECKING</small>
+                </div>
+                
+                <div class="system-card">
+                    <span>NETWORK</span>
+                    <strong id="network">CHECKING</strong>
+                
+                    <div class="network-indicator">
+                        <i id="networkDot"></i>
+                    </div>
                 </div>
 
                 <div class="side-title">
@@ -224,7 +274,7 @@
                 <div class="chat-header">
                     <div>
                         <strong>RAI TERMINAL</strong>
-                        <span>ENCRYPTED NEURAL CHANNEL</span>
+                        <span>START CHAT WITH RAI</span>
                     </div>
 
                     <div class="header-actions">
@@ -273,7 +323,7 @@
                             </p>
 
                             <small>
-                                SYSTEM READY // 00:00:01
+                                SYSTEM READY // RAI VERSION 1.2.4.0
                             </small>
                         </div>
                     </div>
@@ -284,7 +334,7 @@
                     <span></span>
                     <span></span>
                     <span></span>
-                    RAI sedang berpikir...
+                    WAIT RAI LOADING
                 </div>
 
                 <!-- RAI CAMERA -->
@@ -388,7 +438,7 @@
     </main>
 
     <footer>
-        <span>RAI v1.0</span>
+        <span>RAI v1.2.4.0</span>
         <span>REPUBLIK OF AI</span>
         <span>NEURAL SYSTEM ONLINE</span>
     </footer>
@@ -406,15 +456,15 @@
         </div>
 
         <div class="terminal-output">
-            <p>[OK] RAI CORE .............. ONLINE</p>
+            <p>[OK] RAI SYSTEM .............. ONLINE</p>
             <p>[OK] NEURAL NETWORK ........ ACTIVE</p>
             <p>[OK] ENCRYPTION ............ ENABLED</p>
-            <p>[OK] MATRIX ENGINE ......... RUNNING</p>
+            <p>[OK] RAI ENGINE ......... RUNNING</p>
             <p>[OK] CHAT INTERFACE ........ READY</p>
-            <p>[OK] TERMUX SERVER ......... CONNECTED</p>
+            <p>[OK] RAI SERVER ......... CONNECTED</p>
             <br>
-            <p class="green">
-                SYSTEM STATUS: OPERATIONAL
+            <p class="green" id="systemAuthStatus">
+                SYSTEM STATUS: CHECKING...
             </p>
         </div>
 
@@ -422,7 +472,8 @@
 
 </div>
 
-<script src="script.js?v=20260920-sendfix1"></script>
+<script src="script.js?v=20261008-accountfix3"></script>
 
+    <script src="notification.js"></script>
 </body>
 </html>

@@ -42,6 +42,43 @@ try {
 }
 
 function saveChatHistory() {
+    // Bersihkan base64 gambar lama yang mungkin tersimpan
+    // dari versi RAI sebelum history image diperbaiki.
+    for (const chat of chatHistory) {
+        if (!Array.isArray(chat.messages)) continue;
+
+        for (const msg of chat.messages) {
+            if (
+                typeof msg.image === "string" &&
+                (
+                    msg.image.startsWith("data:image/") ||
+                    msg.image.length > 10000
+                )
+            ) {
+                msg.image = "[IMAGE_ATTACHMENT]";
+            }
+        }
+    }
+
+    // Simpan history. Kalau storage sudah terlalu penuh,
+    // hapus chat paling lama sampai berhasil.
+    while (chatHistory.length > 1) {
+        try {
+            localStorage.setItem(
+                RAI_HISTORY_KEY,
+                JSON.stringify(chatHistory)
+            );
+            break;
+        } catch (e) {
+            if (e && e.name !== "QuotaExceededError") {
+                throw e;
+            }
+
+            chatHistory.pop();
+        }
+    }
+
+    // Coba simpan sekali lagi untuk kondisi history hanya tersisa 1 chat.
     localStorage.setItem(
         RAI_HISTORY_KEY,
         JSON.stringify(chatHistory)
@@ -87,10 +124,13 @@ function saveUserMessage(message, image = null) {
                 : message;
     }
 
+    // Jangan simpan base64 gambar ke localStorage.
+    // Foto tetap dikirim ke /api/chat melalui imageToSend,
+    // tetapi history hanya menyimpan penanda attachment.
     current.messages.push({
         role: "user",
         content: message,
-        image: image || null,
+        image: image ? "[IMAGE_ATTACHMENT]" : null,
         timestamp: Date.now()
     });
 
@@ -98,6 +138,8 @@ function saveUserMessage(message, image = null) {
 
     saveChatHistory();
 }
+
+let raiLastGeneratedImage = null;
 
 function saveAIMessage(message) {
     if (!message) return;
@@ -1516,7 +1558,17 @@ function resetSendButton() {
     sendBtn.textContent = "SEND";
     sendBtn.classList.remove("stop-mode");
     sendBtn.title = "SEND";
-    sendBtn.onclick = sendMessage;
+    sendBtn.onclick = async function () {
+        if (
+            typeof window.requestRAINotificationPermission === "function" &&
+            "Notification" in window &&
+            Notification.permission === "default"
+        ) {
+            await window.requestRAINotificationPermission();
+        }
+
+        sendMessage();
+    };
 }
 
 function isImageGenerationRequest(text) {
@@ -1534,7 +1586,7 @@ function isImageGenerationRequest(text) {
      * masuk ke image generation.
      */
     const createVerb =
-        /\b(?:buat|buatkan|bikin|bikinin|bikinkan|ciptakan|generate|hasilkan|gambarkan)\b/i;
+        /\b(?:buat|buatkan|buatin|bikin|bikinin|bikinkan|ciptakan|generate|hasilkan|gambarkan)\b/i;
 
     const imageNoun =
         /\b(?:gambar|ilustrasi|foto|poster|wallpaper|lukisan|logo|artwork)\b/i;
@@ -1543,6 +1595,355 @@ function isImageGenerationRequest(text) {
         createVerb.test(value) &&
         imageNoun.test(value)
     );
+}
+
+
+function isImageEditRequest(text) {
+
+    if (!text || typeof text !== "string") {
+        return false;
+    }
+
+    if (!raiLastGeneratedImage) {
+        return false;
+    }
+
+    const value =
+        text.trim();
+
+    const editVerb =
+        /\b(?:ubah|rubah|edit|editkan|ganti|gantikan|tambahkan|tambah|hapus|hilangkan|jadikan|buat\s+jadi|buat\s+ulang|bikin\s+ulang|buatkan\s+ulang)\b/i;
+
+    return editVerb.test(value);
+}
+
+
+async function prepareImageForEdit(dataUrl) {
+
+    return new Promise((resolve, reject) => {
+
+        const img =
+            new Image();
+
+        img.onload = () => {
+
+            const maxSize = 512;
+
+            const scale =
+                Math.min(
+                    1,
+                    maxSize /
+                        Math.max(
+                            img.naturalWidth,
+                            img.naturalHeight
+                        )
+                );
+
+            const width =
+                Math.max(
+                    1,
+                    Math.round(
+                        img.naturalWidth * scale
+                    )
+                );
+
+            const height =
+                Math.max(
+                    1,
+                    Math.round(
+                        img.naturalHeight * scale
+                    )
+                );
+
+            const canvas =
+                document.createElement("canvas");
+
+            canvas.width =
+                width;
+
+            canvas.height =
+                height;
+
+            const ctx =
+                canvas.getContext("2d");
+
+            if (!ctx) {
+                reject(
+                    new Error(
+                        "Canvas tidak tersedia."
+                    )
+                );
+                return;
+            }
+
+            ctx.drawImage(
+                img,
+                0,
+                0,
+                width,
+                height
+            );
+
+            resolve(
+                canvas.toDataURL(
+                    "image/jpeg",
+                    0.85
+                )
+            );
+        };
+
+        img.onerror = () => {
+            reject(
+                new Error(
+                    "Gambar terakhir tidak dapat diproses."
+                )
+            );
+        };
+
+        img.src =
+            dataUrl;
+    });
+}
+
+
+async function editGeneratedImageFromChat(
+    message
+) {
+
+    if (!raiLastGeneratedImage) {
+        throw new Error(
+            "Belum ada gambar RAI yang bisa diedit."
+        );
+    }
+
+    const prompt =
+        message.trim();
+
+    console.log(
+        "RAI IMAGE EDIT INTENT:",
+        prompt
+    );
+
+    const imageForEdit =
+        await prepareImageForEdit(
+            raiLastGeneratedImage
+        );
+
+    console.log(
+        "RAI IMAGE EDIT INPUT:",
+        imageForEdit.length,
+        "characters"
+    );
+
+    const typing =
+        document.getElementById("typing");
+
+    if (typing) {
+        typing.style.display =
+            "block";
+
+        typing.textContent =
+            "RAI sedang mengedit gambar...";
+    }
+
+    const timeoutId =
+        setTimeout(() => {
+            if (currentController) {
+                currentController.abort();
+            }
+        }, 90000);
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/edit-image",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        prompt,
+                        image:
+                            imageForEdit
+                    }),
+
+                    signal:
+                        currentController
+                            ?.signal
+                }
+            );
+
+        clearTimeout(timeoutId);
+
+        const responseText =
+            await response.text();
+
+        let data;
+
+        try {
+            data =
+                JSON.parse(responseText);
+        } catch {
+            throw new Error(
+                responseText ||
+                `HTTP ${response.status}`
+            );
+        }
+
+        console.log(
+            "RAI IMAGE EDIT RESPONSE:",
+            {
+                status:
+                    response.status,
+                success:
+                    data?.success,
+                imageLength:
+                    data?.image?.length || 0
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                data.error ||
+                `HTTP ${response.status}`
+            );
+        }
+
+        if (
+            !data.success ||
+            !data.image
+        ) {
+            throw new Error(
+                data.error ||
+                "RAI tidak menerima hasil edit gambar."
+            );
+        }
+
+        raiLastGeneratedImage =
+            data.image;
+
+        if (typing) {
+            typing.style.display =
+                "none";
+        }
+
+        const paragraph =
+            document.createElement("div");
+
+        paragraph.className =
+            "rai-generated-image-wrap";
+
+        const image =
+            document.createElement("img");
+
+        image.src =
+            data.image;
+
+        image.alt =
+            prompt;
+
+        image.className =
+            "rai-generated-image";
+
+        image.loading =
+            "lazy";
+
+        paragraph.appendChild(
+            image
+        );
+
+        const caption =
+            document.createElement("div");
+
+        caption.className =
+            "rai-generated-image-caption";
+
+        caption.textContent =
+            "IMAGE EDITED // FLUX.2";
+
+        paragraph.appendChild(
+            caption
+        );
+
+        chat.appendChild(
+            paragraph
+        );
+
+        chat.scrollTop =
+            chat.scrollHeight;
+
+        saveAIMessage(
+            "[Gambar diedit] " +
+            prompt
+        );
+
+        console.log(
+            "RAI IMAGE EDIT DISPLAYED:",
+            data.image.length,
+            "characters"
+        );
+
+        return true;
+
+    } catch (error) {
+
+        clearTimeout(timeoutId);
+
+        if (
+            error?.name ===
+            "AbortError"
+        ) {
+            if (typing) {
+                typing.style.display =
+                    "none";
+            }
+
+            return true;
+        }
+
+        console.error(
+            "RAI IMAGE EDIT ERROR:",
+            error
+        );
+
+        if (typing) {
+            typing.style.display =
+                "none";
+        }
+
+        const errorMessage =
+            document.createElement("p");
+
+        errorMessage.className =
+            "message-content";
+
+        errorMessage.textContent =
+            "RAI IMAGE EDIT ERROR: " +
+            (
+                error?.message ||
+                "Gagal mengedit gambar."
+            );
+
+        chat.appendChild(
+            errorMessage
+        );
+
+        chat.scrollTop =
+            chat.scrollHeight;
+
+        return true;
+
+    } finally {
+
+        clearTimeout(timeoutId);
+        currentController = null;
+        resetSendButton();
+    }
 }
 
 
@@ -1562,10 +1963,489 @@ function cleanImageGenerationPrompt(text) {
 }
 
 
+
+function showGoogleLoginPrompt() {
+    const old = document.getElementById("raiGoogleLoginPrompt");
+    if (old) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "raiGoogleLoginPrompt";
+
+    overlay.innerHTML = `
+        <div class="rai-access-backdrop"></div>
+
+        <div class="rai-access-panel">
+
+            <div class="rai-access-scanline"></div>
+
+            <div class="rai-access-top">
+                <span class="rai-access-dot"></span>
+                <span>RAI SECURITY SYSTEM</span>
+                <span class="rai-access-code">AUTH://LOCKED</span>
+            </div>
+
+            <div class="rai-access-icon">
+                <div class="rai-lock">
+                    <div class="rai-lock-shackle"></div>
+                    <div class="rai-lock-body">
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rai-access-title">
+                ACCESS RESTRICTED
+            </div>
+
+            <div class="rai-access-subtitle">
+                FITUR TERKUNCI
+            </div>
+
+            <div class="rai-access-line"></div>
+
+            <div class="rai-access-message">
+                Fitur ini membutuhkan akses penuh
+                <strong>RAI ENGGINER</strong>.
+                Login dengan Google untuk membuka
+                seluruh kemampuan sistem.
+            </div>
+
+            <div class="rai-access-status">
+                <div>
+                    <span>CORE ACCESS</span>
+                    <b>LOCKED</b>
+                </div>
+                <div>
+                    <span>GOOGLE AUTH</span>
+                    <b>REQUIRED</b>
+                </div>
+            </div>
+
+            <button class="rai-google-access"
+                onclick="window.location.href='/auth/google'">
+                <span class="rai-google-symbol">G</span>
+                <span class="rai-google-text">
+                    LOGIN WITH GOOGLE
+                    <small>UNLOCK FULL ACCESS</small>
+                </span>
+                <span class="rai-arrow">→</span>
+            </button>
+
+            <button class="rai-later-access"
+                onclick="document.getElementById('raiGoogleLoginPrompt')?.remove()">
+                CONTINUE WITH BASIC ACCESS
+            </button>
+
+            <div class="rai-access-footer">
+                RAI ENGGINER // REPUBLIK OF AI
+            </div>
+
+        </div>
+    `;
+
+    const style = document.createElement("style");
+
+    style.textContent = `
+        #raiGoogleLoginPrompt {
+            position: fixed;
+            inset: 0;
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: "Courier New", monospace;
+        }
+
+        .rai-access-backdrop {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at center,
+                    rgba(0,255,210,.08),
+                    rgba(0,0,0,.94) 62%);
+            backdrop-filter: blur(14px);
+        }
+
+        .rai-access-panel {
+            position: relative;
+            width: min(430px, calc(100vw - 34px));
+            padding: 24px;
+            overflow: hidden;
+
+            background:
+                linear-gradient(
+                    145deg,
+                    rgba(7,18,20,.98),
+                    rgba(2,8,10,.99)
+                );
+
+            border: 1px solid rgba(0,255,210,.35);
+            border-radius: 18px;
+
+            box-shadow:
+                0 0 0 1px rgba(0,255,210,.05),
+                0 0 45px rgba(0,255,210,.12),
+                inset 0 0 35px rgba(0,255,210,.025);
+
+            animation: raiAccessIn .25s ease-out;
+        }
+
+        .rai-access-panel::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0px,
+                    transparent 3px,
+                    rgba(0,255,210,.018) 4px
+                );
+        }
+
+        .rai-access-scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #00ffd5;
+            box-shadow: 0 0 12px #00ffd5;
+            opacity: .55;
+            animation: raiScan 3s linear infinite;
+        }
+
+        .rai-access-top {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(0,255,210,.65);
+            font-size: 9px;
+            letter-spacing: 1.8px;
+        }
+
+        .rai-access-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #00ffd5;
+            box-shadow: 0 0 10px #00ffd5;
+        }
+
+        .rai-access-code {
+            margin-left: auto;
+            opacity: .45;
+        }
+
+        .rai-access-icon {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            margin: 30px 0 18px;
+        }
+
+        .rai-lock {
+            position: relative;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rai-lock::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border: 1px solid rgba(0,255,210,.18);
+            border-radius: 50%;
+            box-shadow: 0 0 25px rgba(0,255,210,.08);
+        }
+
+        .rai-lock-shackle {
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            top: 9px;
+            border: 3px solid #00ffd5;
+            border-bottom: 0;
+            border-radius: 15px 15px 0 0;
+            filter: drop-shadow(0 0 7px rgba(0,255,210,.7));
+        }
+
+        .rai-lock-body {
+            position: absolute;
+            top: 30px;
+            width: 34px;
+            height: 27px;
+            border-radius: 5px;
+            background: #00ffd5;
+            box-shadow:
+                0 0 18px rgba(0,255,210,.45);
+        }
+
+        .rai-lock-body span {
+            position: absolute;
+            width: 5px;
+            height: 9px;
+            left: 50%;
+            top: 8px;
+            transform: translateX(-50%);
+            background: #03201e;
+            border-radius: 4px;
+        }
+
+        .rai-access-title {
+            position: relative;
+            text-align: center;
+            color: #eaffff;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-shadow: 0 0 18px rgba(0,255,210,.3);
+        }
+
+        .rai-access-subtitle {
+            position: relative;
+            margin-top: 6px;
+            text-align: center;
+            color: #00ffd5;
+            font-size: 10px;
+            letter-spacing: 3px;
+        }
+
+        .rai-access-line {
+            position: relative;
+            height: 1px;
+            margin: 20px 0;
+            background:
+                linear-gradient(
+                    90deg,
+                    transparent,
+                    rgba(0,255,210,.5),
+                    transparent
+                );
+        }
+
+        .rai-access-message {
+            position: relative;
+            color: rgba(225,245,244,.68);
+            text-align: center;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.65;
+        }
+
+        .rai-access-message strong {
+            color: #00ffd5;
+            font-family: "Courier New", monospace;
+            letter-spacing: 1px;
+        }
+
+        .rai-access-status {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 20px 0;
+        }
+
+        .rai-access-status div {
+            padding: 10px;
+            background: rgba(0,255,210,.025);
+            border: 1px solid rgba(0,255,210,.1);
+            border-radius: 7px;
+        }
+
+        .rai-access-status span,
+        .rai-access-status b {
+            display: block;
+        }
+
+        .rai-access-status span {
+            color: rgba(220,255,250,.38);
+            font-size: 8px;
+            letter-spacing: 1.4px;
+        }
+
+        .rai-access-status b {
+            margin-top: 4px;
+            color: #ffbd5c;
+            font-size: 9px;
+            letter-spacing: 1px;
+        }
+
+        .rai-google-access {
+            position: relative;
+            width: 100%;
+            min-height: 58px;
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 10px 14px;
+            border: 1px solid rgba(0,255,210,.45);
+            border-radius: 9px;
+            background: rgba(0,255,210,.07);
+            color: white;
+            cursor: pointer;
+            text-align: left;
+            transition: .2s ease;
+        }
+
+        .rai-google-access:hover {
+            background: rgba(0,255,210,.13);
+            border-color: #00ffd5;
+            box-shadow: 0 0 22px rgba(0,255,210,.16);
+            transform: translateY(-1px);
+        }
+
+        .rai-google-symbol {
+            width: 34px;
+            height: 34px;
+            display: grid;
+            place-items: center;
+            border-radius: 7px;
+            background: white;
+            color: #4285f4;
+            font-family: Arial, sans-serif;
+            font-weight: 700;
+            font-size: 19px;
+        }
+
+        .rai-google-text {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            letter-spacing: 1px;
+        }
+
+        .rai-google-text small {
+            color: rgba(220,255,250,.42);
+            font-size: 8px;
+            letter-spacing: 1px;
+        }
+
+        .rai-arrow {
+            margin-left: auto;
+            color: #00ffd5;
+            font-size: 20px;
+        }
+
+        .rai-later-access {
+            position: relative;
+            width: 100%;
+            margin-top: 10px;
+            padding: 12px;
+            border: 0;
+            background: transparent;
+            color: rgba(220,255,250,.35);
+            font-family: "Courier New", monospace;
+            font-size: 9px;
+            letter-spacing: 1.2px;
+            cursor: pointer;
+        }
+
+        .rai-later-access:hover {
+            color: rgba(220,255,250,.7);
+        }
+
+        .rai-access-footer {
+            position: relative;
+            margin-top: 13px;
+            text-align: center;
+            color: rgba(0,255,210,.22);
+            font-size: 7px;
+            letter-spacing: 2px;
+        }
+
+        @keyframes raiAccessIn {
+            from {
+                opacity: 0;
+                transform: scale(.96) translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        @keyframes raiScan {
+            from { transform: translateY(0); }
+            to { transform: translateY(420px); }
+        }
+    `;
+
+    document.head.appendChild(style);
+    document.body.appendChild(overlay);
+}
+
+
+async function updateSystemAuthStatus() {
+    const status =
+        document.getElementById("systemAuthStatus");
+
+    if (!status) return;
+
+    try {
+        const response = await fetch("/api/auth/me", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+
+        const data = await response.json();
+
+        if (data.loggedIn === true) {
+            status.textContent =
+                "SYSTEM STATUS: UNLOCK ALL FITUR";
+        } else {
+            status.textContent =
+                "SYSTEM STATUS: LOCK FITUR";
+        }
+
+    } catch (error) {
+        console.error(
+            "RAI SYSTEM AUTH STATUS ERROR:",
+            error
+        );
+
+        status.textContent =
+            "SYSTEM STATUS: LOCK FITUR";
+    }
+}
+
+async function checkRAILogin() {
+    try {
+        const response = await fetch("/api/auth/me", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+
+        if (!response.ok) return false;
+
+        const data = await response.json();
+        return data.loggedIn === true;
+    } catch (error) {
+        console.error("RAI AUTH CHECK ERROR:", error);
+        return false;
+    }
+}
+
 async function generateImageFromChat(
     message,
     userImage
 ) {
+    const loggedIn = await checkRAILogin();
+
+    if (!loggedIn) {
+        console.log("RAI ROUTER: GOOGLE LOGIN REQUIRED");
+        showGoogleLoginPrompt();
+        return true;
+    }
+
     if (userImage) {
         return false;
     }
@@ -1634,8 +2514,13 @@ async function generateImageFromChat(
 
         clearTimeout(timeoutId);
 
+        console.log("RAI IMAGE HTTP STATUS:", response.status);
+        console.log("RAI IMAGE CONTENT TYPE:", response.headers.get("content-type"));
+
         const responseText =
             await response.text();
+
+        console.log("RAI IMAGE RESPONSE LENGTH:", responseText.length);
 
         let data;
 
@@ -1648,6 +2533,12 @@ async function generateImageFromChat(
                 `HTTP ${response.status}`
             );
         }
+
+        console.log("RAI IMAGE JSON PARSED:", {
+            success: data?.success,
+            hasImage: !!data?.image,
+            imageLength: data?.image?.length || 0
+        });
 
         if (!response.ok) {
             throw new Error(
@@ -1666,6 +2557,18 @@ async function generateImageFromChat(
             );
         }
 
+        console.log("RAI IMAGE BEFORE DISPLAY");
+
+        // Simpan gambar terakhir untuk fitur EDIT IMAGE
+        raiLastGeneratedImage =
+            data.image;
+
+        console.log(
+            "RAI LAST GENERATED IMAGE SAVED:",
+            raiLastGeneratedImage.length,
+            "characters"
+        );
+
         typing.style.display =
             "none";
 
@@ -1677,7 +2580,7 @@ async function generateImageFromChat(
                 "";
 
             imageParagraph.className =
-                "message-content rai-generated-image-wrap";
+                "rai-generated-image-wrap";
 
             const image =
                 document.createElement("img");
@@ -1759,6 +2662,8 @@ async function generateImageFromChat(
             error
         );
 
+        console.log("RAI IMAGE BEFORE DISPLAY");
+
         typing.style.display =
             "none";
 
@@ -1778,6 +2683,13 @@ async function generateImageFromChat(
 async function sendMessage() {
 
     console.log("RAI SEND FUNCTION CALLED");
+    console.log("RAI SEND STATE:", {
+        selectedImageType: typeof selectedImage,
+        selectedImageSize: typeof selectedImage === "string" ? selectedImage.length : 0,
+        selectedImagePrefix: typeof selectedImage === "string" ? selectedImage.slice(0,30) : null,
+        selectedFile: !!selectedFile,
+        message: input?.value || ""
+    });
 
     try {
         playRAISound("send");
@@ -1789,21 +2701,45 @@ async function sendMessage() {
 
     const message = input.value.trim();
 
-    let imageToSend = selectedImage;
+    // SNAPSHOT attachment sebelum state UI dibersihkan.
+    // Jangan memakai selectedImage/selectedFile langsung setelah preview dihapus.
+    const imageSnapshot =
+        typeof selectedImage === "string" && selectedImage.startsWith("data:image/")
+            ? selectedImage
+            : null;
+
+    const fileSnapshot =
+        selectedFile
+            ? {
+                name: selectedFile.name,
+                type: selectedFile.type,
+                size: selectedFile.size,
+                data: selectedFile.data
+            }
+            : null;
+
+    let imageToSend = imageSnapshot;
 
     if (
         !imageToSend &&
-        selectedFile &&
-        typeof selectedFile.type === "string" &&
-        selectedFile.type.startsWith("image/") &&
-        typeof selectedFile.data === "string"
+        fileSnapshot &&
+        typeof fileSnapshot.type === "string" &&
+        fileSnapshot.type.startsWith("image/") &&
+        typeof fileSnapshot.data === "string"
     ) {
         imageToSend =
             "data:" +
-            selectedFile.type +
+            fileSnapshot.type +
             ";base64," +
-            selectedFile.data;
+            fileSnapshot.data;
     }
+
+    console.log("RAI ATTACHMENT SNAPSHOT:", {
+        image: !!imageToSend,
+        imageSize: imageToSend ? imageToSend.length : 0,
+        file: !!fileSnapshot,
+        fileName: fileSnapshot?.name || null
+    });
 
     console.log(
         "RAI SEND IMAGE:",
@@ -1826,6 +2762,65 @@ async function sendMessage() {
     if (!finalMessage) return;
 
     stopRequested = false;
+
+    /*
+     * RAI IMAGE EDIT ROUTER
+     *
+     * Kalau ada gambar hasil RAI sebelumnya
+     * dan user memberi instruksi edit,
+     * kirim gambar + instruksi ke FLUX.2.
+     */
+    if (
+        !imageToSend &&
+        !selectedFile &&
+        raiLastGeneratedImage &&
+        isImageEditRequest(message)
+    ) {
+
+        console.log(
+            "RAI ROUTER: IMAGE EDIT"
+        );
+
+        const sendBtn =
+            document.getElementById("sendBtn");
+
+        if (sendBtn) {
+            sendBtn.textContent = "□";
+            sendBtn.classList.add("stop-mode");
+            sendBtn.title = "STOP RAI";
+            sendBtn.onclick = stopRAI;
+        }
+
+        addMessage(
+            message,
+            "user"
+        );
+
+        saveUserMessage(
+            message
+        );
+
+        input.value = "";
+
+        currentController =
+            new AbortController();
+
+        await editGeneratedImageFromChat(
+            message
+        );
+
+        return;
+    }
+
+    console.log(
+        "RAI IMAGE DETECTOR:",
+        JSON.stringify({
+            message: message,
+            imageToSend: !!imageToSend,
+            selectedFile: !!selectedFile,
+            isImageRequest: isImageGenerationRequest(message)
+        })
+    );
 
     /*
      * RAI IMAGE GENERATION ROUTER
@@ -1903,9 +2898,15 @@ async function sendMessage() {
 
     input.value = "";
 
+    // Bersihkan UI setelah attachment sudah diamankan di snapshot.
     if (imageToSend) {
         removeImage();
     }
+
+    if (fileSnapshot) {
+        removeFile();
+    }
+
     console.log("RAI IMAGE PREVIEW REMOVED");
 
     typing.style.display = "block";
@@ -1939,7 +2940,7 @@ async function sendMessage() {
             raiPayload = JSON.stringify({
                 message: finalMessage,
                 image: imageToSend || null,
-                file: selectedFile || null,
+                file: fileSnapshot || null,
                 history: getMemoryContext(),
                 personality:
                     (typeof raiSettings !== "undefined"
@@ -1998,12 +2999,6 @@ async function sendMessage() {
             throw new Error(
                 "RAI tidak menerima stream dari server."
             );
-        }
-
-        // File sudah berhasil diterima server.
-        // Bersihkan preview attachment dari area input.
-        if (selectedFile) {
-            removeFile();
         }
 
         typing.style.display = "none";
@@ -2155,6 +3150,20 @@ async function sendMessage() {
             saveAIMessage(
                 receivedText
             );
+
+            if (
+                typeof window.notifyRAIFinished ===
+                "function"
+            ) {
+                window.notifyRAIFinished();
+            }
+
+            if (
+                typeof window.playRAIFinishAnimation ===
+                "function"
+            ) {
+                window.playRAIFinishAnimation();
+            }
         }
 
     } catch (error) {
@@ -2488,38 +3497,355 @@ setInterval(
 
 
 // ==============================
-// SYSTEM MONITOR
+// RAI REALTIME SYSTEM MONITOR
 // ==============================
 
-setInterval(() => {
+let raiSystemMonitorTimer = null;
+let raiBattery = null;
 
-    const cpu =
-        Math.floor(
-            20 + Math.random() * 65
+function raiMonitorText(id, value) {
+    const el = document.getElementById(id);
+
+    if (el) {
+        el.textContent = value;
+    }
+}
+
+function raiMonitorBar(id, value) {
+    const el = document.getElementById(id);
+
+    if (el) {
+        el.style.width =
+            Math.max(0, Math.min(100, value)) + "%";
+    }
+}
+
+function raiMonitorPulse(id) {
+    const el = document.getElementById(id);
+
+    if (!el) return;
+
+    el.classList.remove("rai-monitor-update");
+
+    void el.offsetWidth;
+
+    el.classList.add("rai-monitor-update");
+}
+
+
+// ==============================
+// CPU + MEMORY
+// ==============================
+
+async function updateRAISystemStats() {
+
+    try {
+
+        const response = await fetch(
+            "/api/system-stats?t=" + Date.now(),
+            {
+                method: "GET",
+                cache: "no-store"
+            }
         );
 
-    const memory =
-        Math.floor(
-            40 + Math.random() * 45
+        if (!response.ok) {
+            throw new Error(
+                "HTTP " + response.status
+            );
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(
+                "System stats gagal"
+            );
+        }
+
+        const cpu =
+            Number(data.cpu) || 0;
+
+        const memory =
+            Number(data.memory) || 0;
+
+        raiMonitorText(
+            "cpu",
+            cpu.toFixed(1) + "%"
         );
 
-    document.getElementById(
-        "cpu"
-    ).textContent = cpu + "%";
+        raiMonitorText(
+            "memory",
+            memory.toFixed(1) + "%"
+        );
 
-    document.getElementById(
-        "memory"
-    ).textContent = memory + "%";
+        raiMonitorBar(
+            "cpuBar",
+            cpu
+        );
 
-    document.getElementById(
-        "cpuBar"
-    ).style.width = cpu + "%";
+        raiMonitorBar(
+            "memoryBar",
+            memory
+        );
 
-    document.getElementById(
-        "memoryBar"
-    ).style.width = memory + "%";
+        raiMonitorPulse("cpu");
+        raiMonitorPulse("memory");
 
-}, 1500);
+    } catch (error) {
+
+        console.error(
+            "RAI REALTIME MONITOR ERROR:",
+            error
+        );
+
+        raiMonitorText(
+            "cpu",
+            "OFFLINE"
+        );
+
+        raiMonitorText(
+            "memory",
+            "OFFLINE"
+        );
+    }
+}
+
+
+// ==============================
+// BATTERY
+// ==============================
+
+async function initRAIBattery() {
+
+    try {
+
+        if (
+            !("getBattery" in navigator)
+        ) {
+            raiMonitorText(
+                "battery",
+                "N/A"
+            );
+
+            raiMonitorText(
+                "batteryStatus",
+                "NOT SUPPORTED"
+            );
+
+            return;
+        }
+
+        raiBattery =
+            await navigator.getBattery();
+
+        updateRAIBattery();
+
+        raiBattery.addEventListener(
+            "levelchange",
+            updateRAIBattery
+        );
+
+        raiBattery.addEventListener(
+            "chargingchange",
+            updateRAIBattery
+        );
+
+    } catch (error) {
+
+        console.error(
+            "RAI BATTERY ERROR:",
+            error
+        );
+
+        raiMonitorText(
+            "battery",
+            "N/A"
+        );
+
+        raiMonitorText(
+            "batteryStatus",
+            "UNAVAILABLE"
+        );
+    }
+}
+
+function updateRAIBattery() {
+
+    if (!raiBattery) {
+        return;
+    }
+
+    const level =
+        Math.round(
+            raiBattery.level * 100
+        );
+
+    raiMonitorText(
+        "battery",
+        level + "%"
+    );
+
+    raiMonitorBar(
+        "batteryBar",
+        level
+    );
+
+    raiMonitorText(
+        "batteryStatus",
+        raiBattery.charging
+            ? "CHARGING"
+            : "DISCHARGING"
+    );
+
+    raiMonitorPulse("battery");
+}
+
+
+// ==============================
+// NETWORK
+// ==============================
+
+function getRAINetworkType() {
+
+    if (!navigator.onLine) {
+        return "Offline";
+    }
+
+    const connection =
+        navigator.connection ||
+        navigator.mozConnection ||
+        navigator.webkitConnection;
+
+    if (connection) {
+
+        const type =
+            String(
+                connection.type || ""
+            ).toLowerCase();
+
+        if (type === "wifi") {
+            return "WiFi";
+        }
+
+        if (
+            type === "cellular"
+        ) {
+            return "Mobile Data";
+        }
+    }
+
+    return "Online";
+}
+
+function updateRAINetwork() {
+
+    const network =
+        getRAINetworkType();
+
+    raiMonitorText(
+        "network",
+        network
+    );
+
+    const dot =
+        document.getElementById(
+            "networkDot"
+        );
+
+    if (dot) {
+
+        dot.classList.remove(
+            "network-online",
+            "network-offline",
+            "network-mobile"
+        );
+
+        if (network === "Offline") {
+
+            dot.classList.add(
+                "network-offline"
+            );
+
+        } else if (
+            network === "Mobile Data"
+        ) {
+
+            dot.classList.add(
+                "network-mobile"
+            );
+
+        } else {
+
+            dot.classList.add(
+                "network-online"
+            );
+        }
+    }
+
+    raiMonitorPulse("network");
+}
+
+
+// ==============================
+// NETWORK EVENTS
+// ==============================
+
+window.addEventListener(
+    "online",
+    updateRAINetwork
+);
+
+window.addEventListener(
+    "offline",
+    updateRAINetwork
+);
+
+const raiConnection =
+    navigator.connection ||
+    navigator.mozConnection ||
+    navigator.webkitConnection;
+
+if (raiConnection) {
+
+    raiConnection.addEventListener(
+        "change",
+        updateRAINetwork
+    );
+}
+
+
+// ==============================
+// START REALTIME MONITOR
+// ==============================
+
+async function startRAISystemMonitor() {
+
+    updateRAINetwork();
+
+    await initRAIBattery();
+
+    await updateRAISystemStats();
+
+    if (raiSystemMonitorTimer) {
+        clearInterval(
+            raiSystemMonitorTimer
+        );
+    }
+
+    raiSystemMonitorTimer =
+        setInterval(
+            updateRAISystemStats,
+            1000
+        );
+
+    setInterval(
+        updateRAINetwork,
+        2000
+    );
+}
+
+startRAISystemMonitor();
 
 
 
@@ -3547,4 +4873,166 @@ function openTrackMap(latitude, longitude) {
         "_blank"
     );
 }
+
+
+/* RAI GOOGLE ACCOUNT STATUS */
+
+async function updateRAIGoogleAccount() {
+
+    const accountBox =
+        document.querySelector(".rai-setting-account");
+
+    const loginBox =
+        document.querySelector(".rai-google-login");
+
+    if (!accountBox || !loginBox) return;
+
+    try {
+
+        const response = await fetch(
+            "/api/auth/me",
+            {
+                credentials: "same-origin",
+                cache: "no-store"
+            }
+        );
+
+        const data = await response.json();
+
+        if (data.loggedIn && data.user) {
+
+            const name =
+                data.user.name ||
+                "Google Account";
+
+            const email =
+                data.user.email ||
+                "";
+
+            const picture =
+                data.user.picture ||
+                "";
+
+            loginBox.classList.add(
+                "rai-google-logged"
+            );
+
+            loginBox.innerHTML = `
+                <span class="rai-google-logo rai-account-avatar">
+                    ${
+                        picture
+                            ? `<img src="${escapeHtmlSafe(picture)}" alt="">`
+                            : `<span>G</span>`
+                    }
+                </span>
+
+                <span class="rai-google-text">
+                    <strong>
+                        ${escapeHtmlSafe(name)}
+                        <span class="rai-account-check">✓</span>
+                    </strong>
+
+                    <small>
+                        ${escapeHtmlSafe(email)}
+                    </small>
+                </span>
+
+                <span class="rai-google-status">
+                    ONLINE
+                </span>
+
+                <button
+                    type="button"
+                    id="raiLogoutButton"
+                    class="rai-logout-button"
+                >
+                    LOGOUT
+                </button>
+            `;
+
+        } else {
+
+            loginBox.classList.remove(
+                "rai-google-logged"
+            );
+
+            loginBox.innerHTML = `
+                <span class="rai-google-logo">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path fill="#4285F4" d="M21.35 12.27c0-.79-.07-1.55-.2-2.27H12v4.3h5.24a4.48 4.48 0 0 1-1.94 2.94v2.45h3.14c1.84-1.69 2.91-4.18 2.91-7.42z"/>
+                        <path fill="#34A853" d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.54 0-4.7-1.72-5.47-4.03H3.28v2.53A9.75 9.75 0 0 0 12 21.75z"/>
+                        <path fill="#FBBC05" d="M6.53 13.83A5.86 5.86 0 0 1 6.22 12c0-.64.11-1.26.31-1.83V7.64H3.28A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.05 1.03 4.36l3.25-2.53z"/>
+                        <path fill="#EA4335" d="M12 6.14c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.83 3.1 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.72 5.39l3.25 2.53C7.3 7.86 9.46 6.14 12 6.14z"/>
+                    </svg>
+                </span>
+
+                <span class="rai-google-text">
+                    <strong>LOGIN WITH GOOGLE</strong>
+                    <small>Sign in to your RAI account</small>
+                </span>
+
+                <button
+                    type="button"
+                    class="rai-google-arrow"
+                    onclick="window.location.href='/auth/google'"
+                    aria-label="Login dengan Google"
+                >›</button>
+            `;
+        }
+
+    } catch (error) {
+
+        console.error(
+            "RAI ACCOUNT STATUS ERROR:",
+            error
+        );
+    }
+}
+
+/* Check saat halaman RAI dibuka */
+document.addEventListener("DOMContentLoaded", () => {
+    updateRAIGoogleAccount();
+    updateSystemAuthStatus();
+});
+
+/* Check lagi setiap Settings dibuka */
+const raiOriginalToggleSettings = window.toggleRAISettings;
+
+if (typeof raiOriginalToggleSettings === "function") {
+    window.toggleRAISettings = function () {
+        raiOriginalToggleSettings.apply(this, arguments);
+        setTimeout(updateRAIGoogleAccount, 50);
+    };
+}
+
+
+/* RAI LOGOUT BUTTON */
+document.addEventListener("click", async function (event) {
+    const logoutButton = event.target.closest("#raiLogoutButton");
+
+    if (!logoutButton) return;
+
+    logoutButton.disabled = true;
+    logoutButton.textContent = "LOGGING OUT...";
+
+    try {
+        const response = await fetch("/auth/logout", {
+            method: "POST",
+            credentials: "same-origin"
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            window.location.reload();
+        } else {
+            logoutButton.disabled = false;
+            logoutButton.textContent = "LOGOUT";
+        }
+    } catch (error) {
+        console.error("RAI LOGOUT ERROR:", error);
+        logoutButton.disabled = false;
+        logoutButton.textContent = "LOGOUT";
+    }
+});
 

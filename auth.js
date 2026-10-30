@@ -1,5 +1,7 @@
+const path = require("path");
 const session = require("express-session");
 const { google } = require("googleapis");
+const FileStore = require("session-file-store")(session);
 
 function setupAuth(app) {
     const oauth2Client = new google.auth.OAuth2(
@@ -9,13 +11,19 @@ function setupAuth(app) {
     );
 
     app.use(session({
+        name: "rai.sid.v2",
         secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
+        store: new FileStore({
+            path: path.join(__dirname, "sessions"),
+            ttl: 7 * 24 * 60 * 60,
+            retries: 1
+        }),
         cookie: {
             httpOnly: true,
             sameSite: "lax",
-            secure: false,
+            secure: process.env.NODE_ENV === "production",
             maxAge: 7 * 24 * 60 * 60 * 1000
         }
     }));

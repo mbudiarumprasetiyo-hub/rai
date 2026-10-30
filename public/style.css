@@ -302,40 +302,207 @@ button:hover {
     color: var(--green);
 }
 
+/* ==============================
+   RAI REALTIME SYSTEM MONITOR
+   ============================== */
+
 .system-card {
+    position: relative;
+    overflow: hidden;
     padding: 13px;
-    border: 1px solid rgba(var(--rai-primary-rgb), .12);
+    border: 1px solid rgba(var(--rai-primary-rgb), .14);
     margin-bottom: 8px;
-    background: rgba(var(--rai-primary-rgb), .025);
+    background:
+        linear-gradient(
+            135deg,
+            rgba(var(--rai-primary-rgb), .045),
+            rgba(var(--rai-primary-rgb), .012)
+        );
+    transition:
+        border-color .25s ease,
+        box-shadow .25s ease,
+        transform .25s ease;
+}
+
+.system-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 1px;
+    background: var(--green);
+    opacity: .7;
+    animation: raiMonitorScan 3.5s linear infinite;
+}
+
+.system-card:hover {
+    border-color: rgba(var(--rai-primary-rgb), .35);
+    box-shadow:
+        0 0 14px rgba(var(--rai-primary-rgb), .08),
+        inset 0 0 14px rgba(var(--rai-primary-rgb), .025);
+    transform: translateY(-1px);
 }
 
 .system-card span {
     font-size: 9px;
     color: var(--muted);
+    letter-spacing: 1.5px;
 }
 
 .system-card strong {
     float: right;
     font-size: 11px;
+    color: var(--green);
+    font-family: Orbitron, sans-serif;
+    transition:
+        opacity .2s ease,
+        text-shadow .2s ease;
 }
 
-.green {
-    color: var(--green) !important;
+.system-card small {
+    display: block;
+    margin-top: 7px;
+    color: var(--muted);
+    font-size: 7px;
+    letter-spacing: 1.5px;
+    text-align: right;
 }
 
 .progress {
+    position: relative;
+    overflow: hidden;
     height: 3px;
-    background: #092117;
+    background: rgba(var(--rai-primary-rgb), .08);
     margin-top: 10px;
+    border-radius: 3px;
 }
 
 .progress i {
     display: block;
     height: 100%;
-    width: 40%;
+    width: 0%;
     background: var(--green);
-    box-shadow: 0 0 8px var(--green);
+    box-shadow:
+        0 0 7px var(--green),
+        0 0 14px rgba(var(--rai-primary-rgb), .25);
+    border-radius: 3px;
+    transition:
+        width .7s cubic-bezier(.22, 1, .36, 1);
+    position: relative;
 }
+
+.progress i::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 22px;
+    height: 100%;
+    background: rgba(255, 255, 255, .5);
+    filter: blur(3px);
+    opacity: .55;
+}
+
+.rai-monitor-update {
+    animation: raiMonitorValue .45s ease;
+}
+
+@keyframes raiMonitorValue {
+    0% {
+        opacity: .45;
+        text-shadow: 0 0 0 transparent;
+    }
+
+    50% {
+        opacity: 1;
+        text-shadow:
+            0 0 7px var(--green),
+            0 0 15px rgba(var(--rai-primary-rgb), .4);
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes raiMonitorScan {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+
+/* ==============================
+   NETWORK INDICATOR
+   ============================== */
+
+.network-indicator {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+#networkDot {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow:
+        0 0 6px var(--green),
+        0 0 12px rgba(var(--rai-primary-rgb), .45);
+    transition:
+        background .25s ease,
+        box-shadow .25s ease;
+}
+
+#networkDot.network-online {
+    animation: raiNetworkPulse 1.5s ease-in-out infinite;
+}
+
+#networkDot.network-mobile {
+    animation: raiNetworkPulse .9s ease-in-out infinite;
+}
+
+#networkDot.network-offline {
+    background: #555;
+    box-shadow: 0 0 3px #555;
+    animation: none;
+}
+
+@keyframes raiNetworkPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: .45;
+        transform: scale(.7);
+    }
+}
+
+
+/* ==============================
+   MOBILE MONITOR GRID
+   ============================== */
+
+@media (max-width: 700px) {
+
+    .system-card {
+        padding: 12px;
+    }
+
+    .system-card strong {
+        font-size: 10px;
+    }
+}
+
 
 .side-button {
     width: 100%;
@@ -781,12 +948,7 @@ footer {
     box-shadow: 0 0 12px rgba(var(--rai-primary-rgb), 0.25);
 }
 
-#imagePreview {
-    position: absolute;
-    left: 8px;
-    bottom: 58px;
-    z-index: 20;
-}
+
 
 .selected-image {
     position: relative;
@@ -876,10 +1038,7 @@ footer {
     font-size: 19px;
 }
 
-#imagePreview {
-    display: none;
-    margin: 8px 12px;
-}
+
 
 .question-photo-preview {
     display: flex;
@@ -1005,15 +1164,7 @@ main {
     justify-content: center;
 }
 
-#imagePreview {
-    position: relative;
-    left: auto;
-    bottom: auto;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    margin: 6px 0;
-}
+
 
 .selected-image {
     display: flex;
@@ -1313,9 +1464,7 @@ main {
 }
 
 /* Preview foto harus bisa muncul */
-.input-area #imagePreview {
-    display: block !important;
-}
+
 
 /* Prefix */
 .input-area .input-prefix {
@@ -2614,147 +2763,1376 @@ html.rai-no-animations *::after {
     background: #fff;
 }
 
-@media (max-width: 600px) {
-    .rai-preview-bar {
-        align-items: flex-start;
+
+}
+
+
+/* RAI SYSTEM MONITOR - COMPACT */
+.system-card {
+    padding: 9px 10px;
+    margin-bottom: 6px;
+}
+
+.system-card span {
+    font-size: 8px;
+    letter-spacing: 1.2px;
+}
+
+.system-card strong {
+    font-size: 9px;
+}
+
+.system-card small {
+    margin-top: 5px;
+    font-size: 6px;
+    letter-spacing: 1.2px;
+}
+
+.progress {
+    height: 2px;
+    margin-top: 7px;
+}
+
+.network-indicator {
+    margin-top: 6px;
+}
+
+#networkDot {
+    width: 5px;
+    height: 5px;
+}
+
+@media (max-width: 700px) {
+    .system-card {
+        padding: 9px 10px;
     }
 
-    .rai-preview-actions {
-        width: 100%;
-    }
-
-    .rai-preview-control {
-        flex: 1;
-    }
-
-    .rai-preview-frame {
-        min-height: 300px;
+    .system-card strong {
+        font-size: 9px;
     }
 }
+
+
 
 
 /* =========================================
-   RAI SETTINGS BUTTON — FINAL PRECISION FIX
+   RAI IMAGE PREVIEW — CLEAN FINAL
    ========================================= */
 
-#raiSettingsBtn {
-    width: 78px !important;
-    height: 64px !important;
-    min-width: 78px !important;
-    min-height: 64px !important;
-
-    padding: 0 !important;
-    margin: 0 !important;
-
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-
-    line-height: 1 !important;
-    font-size: 31px !important;
-    font-family: Arial, sans-serif !important;
-
-    box-sizing: border-box !important;
-
+.input-area {
     position: relative !important;
-    top: 0 !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-
-    transform: none !important;
-
-    text-align: center !important;
 }
 
-/* Optical correction untuk glyph ⚙ */
-#raiSettingsBtn {
-    line-height: 0 !important;
-}
-
-#raiSettingsBtn::first-line {
-    line-height: 1 !important;
-}
-
-
-
-/* =========================================================
-   RAI GENERATED IMAGE
-   ========================================================= */
-
-.rai-generated-image-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    width: 100%;
-}
-
-.rai-generated-image {
-    display: block;
-    width: min(100%, 768px);
-    max-width: 100%;
-    height: auto;
-    max-height: 70vh;
-    object-fit: contain;
-    border-radius: 16px;
-    margin-top: 6px;
-    cursor: pointer;
-}
-
-.rai-generated-image-caption {
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    opacity: 0.55;
-    text-transform: uppercase;
-}
-
-/* RAI PHOTO PREVIEW - FINAL */
 .input-area #imagePreview {
     position: absolute !important;
-    left: 0 !important;
-    bottom: calc(100% + 6px) !important;
+    left: 8px !important;
+    bottom: 72px !important;
 
-    display: block !important;
+    display: none;
     width: auto !important;
-    max-width: 220px !important;
-    height: auto !important;
+    max-width: calc(100% - 16px) !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
-    z-index: 10 !important;
-    pointer-events: none !important;
+    box-sizing: border-box !important;
+    z-index: 100 !important;
+    pointer-events: auto;
+}
+
+.input-area #imagePreview:not(:empty) {
+    display: block !important;
 }
 
 .input-area #imagePreview .selected-image {
-    display: inline-flex !important;
-    position: relative !important;
+    position: relative;
 
-    width: auto !important;
-    max-width: 220px !important;
-    max-height: 100px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+
+    width: fit-content !important;
+    max-width: min(280px, calc(100vw - 24px)) !important;
 
     margin: 0 !important;
-    padding: 4px !important;
+    padding: 5px !important;
 
-    pointer-events: auto !important;
+    box-sizing: border-box !important;
+
+    background: rgba(0, 10, 5, 0.97) !important;
+    border: 1px solid rgba(var(--rai-primary-rgb), 0.45) !important;
+    border-radius: 8px !important;
+
+    box-shadow:
+        0 0 15px rgba(var(--rai-primary-rgb), 0.18),
+        0 6px 24px rgba(0, 0, 0, 0.45) !important;
 }
 
 .input-area #imagePreview .selected-image img {
     display: block !important;
 
-    width: 90px !important;
-    height: 90px !important;
+    width: 82px !important;
+    height: 64px !important;
 
-    max-width: 90px !important;
-    max-height: 90px !important;
+    max-width: 82px !important;
+    max-height: 64px !important;
 
-    object-fit: cover !important;
+    object-fit: contain !important;
+    border-radius: 5px !important;
 }
 
-.input-area #sendBtn {
+.input-area #imagePreview .selected-image button,
+.input-area #imagePreview .remove-image,
+.input-area #imagePreview .remove-preview {
+    flex: 0 0 auto !important;
+}
+
+@media (max-width: 600px) {
+    .input-area #imagePreview {
+        left: 6px !important;
+        bottom: 72px !important;
+        max-width: calc(100vw - 12px) !important;
+    }
+
+    .input-area #imagePreview .selected-image {
+        max-width: calc(100vw - 24px) !important;
+    }
+
+    .input-area #imagePreview .selected-image img {
+        width: 78px !important;
+        height: 62px !important;
+        max-width: 78px !important;
+        max-height: 62px !important;
+    }
+}
+
+/* =========================================
+   RAI SETTINGS ICON — TRUE CENTER FIX
+   ========================================= */
+
+#raiSettingsBtn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+    line-height: 1 !important;
+
+    text-align: center !important;
+
+    box-sizing: border-box !important;
+}
+
+#raiSettingsBtn::first-letter {
+    line-height: 1;
+}
+
+.topbar #raiSettingsBtn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    padding: 0 !important;
+    line-height: 1 !important;
+
+    box-sizing: border-box !important;
+}
+
+@media (max-width: 600px) {
+    .topbar #raiSettingsBtn {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        padding: 0 !important;
+        line-height: 1 !important;
+    }
+}
+
+
+
+/* =========================================
+   RAI GENERATED IMAGE — FINAL
+   ========================================= */
+
+.rai-generated-image-wrap {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+
+    margin: 8px 0 4px !important;
+    padding: 0 !important;
+
+    box-sizing: border-box !important;
+
+    overflow: visible !important;
+}
+
+.rai-generated-image-wrap .rai-generated-image {
+    display: block !important;
+
+    width: 100% !important;
+    height: auto !important;
+
+    max-width: 100% !important;
+    max-height: none !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    object-fit: contain !important;
+
+    border-radius: 10px !important;
+    border: 1px solid rgba(var(--rai-primary-rgb), 0.35) !important;
+
+    box-sizing: border-box !important;
+}
+
+.rai-generated-image-caption {
+    display: block !important;
+
+    margin-top: 6px !important;
+
+    font-family: inherit;
+    font-size: 9px;
+    line-height: 1.3;
+
+    color: var(--rai-primary);
+
+    opacity: 0.7;
+
+    text-align: left;
+}
+
+@media (max-width: 600px) {
+    .rai-generated-image-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .rai-generated-image-wrap .rai-generated-image {
+        width: 100% !important;
+        height: auto !important;
+
+        max-width: 100% !important;
+        max-height: none !important;
+    }
+}
+
+
+/* === FIX RAI ACCOUNT / GOOGLE LOGIN === */
+.rai-setting-account {
+    width: 100%;
+    overflow: hidden;
+}
+
+.rai-setting-account .rai-google-login {
+    width: 100%;
+    min-height: 62px;
+    height: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.rai-setting-account .rai-google-login svg,
+.rai-setting-account .rai-google-logo,
+.rai-setting-account .rai-google-login img {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    flex: 0 0 24px;
+    display: block;
+    object-fit: contain;
+}
+
+.rai-setting-account .rai-google-login span,
+.rai-setting-account .rai-google-login .google-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.rai-setting-account .rai-google-login .google-arrow {
+    width: 18px !important;
+    height: 18px !important;
+    min-width: 18px !important;
+    max-width: 18px !important;
+    flex: 0 0 18px;
+}
+
+.rai-setting-account > svg {
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+}
+
+
+/* =========================================================
+   RAI SETTINGS — ACCOUNT REDESIGN
+   ========================================================= */
+
+.rai-setting-account {
+    position: relative;
+    width: 100%;
+    margin-top: 8px;
+    padding: 18px 0 4px;
+    box-sizing: border-box;
+}
+
+    .rai-setting-account .rai-logout,
+    .rai-setting-account #raiLogoutButton,
+    .rai-setting-account .logout-btn {
+        min-width: 78px;
+        height: 38px;
+        padding: 0 11px !important;
+        font-size: 10px !important;
+    }
+}
+
+
+/* =========================================================
+   RAI ACCOUNT STATUS — FINAL UI
+   ========================================================= */
+
+.rai-setting-account {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.rai-setting-account .rai-google-login {
+    position: relative;
+    width: 100%;
+    min-height: 74px;
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 11px 12px;
+
+    border: 1px solid rgba(0, 255, 170, .16);
+    border-radius: 14px;
+
+    background:
+        linear-gradient(
+            135deg,
+            rgba(0, 255, 170, .055),
+            rgba(0, 20, 30, .32)
+        );
+
+    box-shadow:
+        inset 0 0 24px rgba(0, 255, 170, .025),
+        0 0 18px rgba(0, 255, 170, .025);
+
+    overflow: hidden;
+    transition:
+        border-color .2s ease,
+        box-shadow .2s ease,
+        transform .2s ease;
+}
+
+.rai-setting-account .rai-google-login::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 14px;
+    right: 14px;
+    height: 1px;
+
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0, 255, 180, .55),
+        transparent
+    );
+
+    opacity: .7;
+}
+
+.rai-setting-account .rai-google-login:hover {
+    border-color: rgba(0, 255, 170, .3);
+
+    box-shadow:
+        inset 0 0 25px rgba(0, 255, 170, .035),
+        0 0 22px rgba(0, 255, 170, .07);
+
+    transform: translateY(-1px);
+}
+
+/* Google icon / account avatar */
+
+.rai-setting-account .rai-google-logo {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+
+    flex: 0 0 42px;
+
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.09);
+
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.rai-setting-account .rai-google-logo svg {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+
+    display: block;
+}
+
+.rai-setting-account .rai-google-logo img,
+.rai-setting-account .rai-account-avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    max-height: none !important;
+
+    display: block;
+    object-fit: cover;
+}
+
+/* fallback G */
+
+.rai-setting-account .rai-account-avatar > span {
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-family: Orbitron, sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+
+    color: #fff;
+    background: linear-gradient(
+        135deg,
+        rgba(0,255,180,.25),
+        rgba(0,100,255,.18)
+    );
+}
+
+/* text area */
+
+.rai-setting-account .rai-google-text {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+
+    display: flex !important;
+    flex-direction: column;
+    justify-content: center;
+
+    gap: 4px;
+}
+
+.rai-setting-account .rai-google-text strong {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    min-width: 0;
+
+    color: #eafff8;
+
+    font-family: Orbitron, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rai-setting-account .rai-google-text small {
+    display: block;
+
+    min-width: 0;
+
+    color: rgba(190, 220, 215, .58);
+
+    font-family: "Share Tech Mono", monospace;
+    font-size: 9px;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* verified */
+
+.rai-setting-account .rai-account-check {
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    color: #00130d;
+    background: #00ffa8;
+
+    font-family: Arial, sans-serif;
+    font-size: 10px;
+    font-weight: 900;
+
+    box-shadow: 0 0 10px rgba(0,255,168,.35);
+}
+
+/* ONLINE badge */
+
+.rai-setting-account .rai-google-status {
+    flex: 0 0 auto;
+
+    padding: 5px 7px;
+
+    border: 1px solid rgba(0,255,168,.18);
+    border-radius: 7px;
+
+    color: #00ffa8;
+
+    background: rgba(0,255,168,.055);
+
+    font-family: "Share Tech Mono", monospace;
+    font-size: 8px;
+    letter-spacing: .8px;
+
+    box-shadow: 0 0 10px rgba(0,255,168,.04);
+}
+
+.rai-setting-account .rai-google-status::before {
+    content: "";
+    display: inline-block;
+
+    width: 5px;
+    height: 5px;
+
+    margin-right: 5px;
+
+    border-radius: 50%;
+    background: #00ffa8;
+
+    box-shadow: 0 0 7px rgba(0,255,168,.7);
+}
+
+/* login arrow */
+
+.rai-setting-account .rai-google-arrow {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+
+    flex: 0 0 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 !important;
+
+    border: 1px solid rgba(0,255,170,.16);
+    border-radius: 9px;
+
+    color: #00ffa8;
+    background: rgba(0,255,170,.045);
+
+    font-size: 20px;
+    line-height: 1;
+
+    cursor: pointer;
+    transition: .2s ease;
+}
+
+.rai-setting-account .rai-google-arrow:hover {
+    background: rgba(0,255,170,.1);
+    border-color: rgba(0,255,170,.35);
+    box-shadow: 0 0 14px rgba(0,255,170,.1);
+}
+
+/* logout */
+
+.rai-setting-account #raiLogoutButton {
+    flex: 0 0 auto;
+
+    height: 31px;
+    padding: 0 10px;
+
+    border: 1px solid rgba(255,90,90,.18);
+    border-radius: 8px;
+
+    color: rgba(255,145,145,.9);
+    background: rgba(255,60,60,.045);
+
+    font-family: "Share Tech Mono", monospace;
+    font-size: 8px;
+    letter-spacing: .7px;
+
+    cursor: pointer;
+    transition: .2s ease;
+}
+
+.rai-setting-account #raiLogoutButton:hover {
+    color: #fff;
+    background: rgba(255,60,60,.1);
+    border-color: rgba(255,90,90,.4);
+    box-shadow: 0 0 14px rgba(255,60,60,.08);
+}
+
+.rai-setting-account #raiLogoutButton:active {
+    transform: scale(.96);
+}
+
+/* mobile */
+
+@media (max-width: 520px) {
+    .rai-setting-account .rai-google-login {
+        min-height: 68px;
+        padding: 9px 10px;
+        gap: 10px;
+        border-radius: 12px;
+    }
+
+    .rai-setting-account .rai-google-logo {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        flex-basis: 38px;
+    }
+
+    .rai-setting-account .rai-google-logo svg {
+        width: 22px !important;
+        height: 22px !important;
+    }
+
+    .rai-setting-account .rai-google-text strong {
+        font-size: 11px;
+    }
+
+    .rai-setting-account .rai-google-text small {
+        font-size: 8px;
+    }
+
+    .rai-setting-account .rai-google-status {
+        display: none;
+    }
+
+    .rai-setting-account #raiLogoutButton {
+        height: 29px;
+        padding: 0 8px;
+        font-size: 7px;
+    }
+}
+
+/* =========================================================
+   RAI ACCOUNT — HARD OVERRIDE / FINAL
+   ========================================================= */
+
+.rai-setting-account {
+    width: 100% !important;
+    margin-top: 18px !important;
+}
+
+.rai-setting-account > label {
+    display: block !important;
+    margin-bottom: 9px !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    letter-spacing: 2px !important;
+    color: #78fff0 !important;
+}
+
+.rai-setting-account .rai-google-login {
     position: relative !important;
-    z-index: 999999 !important;
-    pointer-events: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-height: 70px !important;
+    box-sizing: border-box !important;
+    padding: 10px 12px !important;
+    gap: 12px !important;
+    border: 1px solid rgba(0, 255, 220, .24) !important;
+    border-radius: 16px !important;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(0, 255, 220, .08),
+            rgba(0, 120, 255, .035)
+        ) !important;
+    box-shadow:
+        inset 0 0 20px rgba(0,255,220,.035),
+        0 0 18px rgba(0,255,220,.04) !important;
+    overflow: hidden !important;
+}
+
+.rai-setting-account .rai-google-login::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    pointer-events: none !important;
+    background: linear-gradient(
+        110deg,
+        transparent 0%,
+        rgba(255,255,255,.045) 48%,
+        transparent 52%
+    ) !important;
+}
+
+.rai-setting-account .rai-google-logo {
+    position: relative !important;
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    border-radius: 13px !important;
+    overflow: hidden !important;
+    background: rgba(255,255,255,.06) !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+}
+
+.rai-setting-account .rai-google-logo svg {
+    display: block !important;
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+}
+
+.rai-setting-account .rai-account-avatar img {
+    display: block !important;
+    width: 42px !important;
+    height: 42px !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    border-radius: 12px !important;
+}
+
+.rai-setting-account .rai-account-avatar > span {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    color: #fff !important;
+}
+
+.rai-setting-account .rai-google-text {
+    position: relative !important;
+    z-index: 1 !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    overflow: hidden !important;
+}
+
+.rai-setting-account .rai-google-text strong {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 800 !important;
+    letter-spacing: .5px !important;
+    color: #f2fffd !important;
+}
+
+.rai-setting-account .rai-google-text small {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 10px !important;
+    line-height: 14px !important;
+    color: rgba(190,220,220,.65) !important;
+}
+
+.rai-setting-account .rai-account-check {
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 15px !important;
+    height: 15px !important;
+    border-radius: 50% !important;
+    background: #20d9c2 !important;
+    color: #061312 !important;
+    font-size: 10px !important;
+    font-weight: 1000 !important;
+    box-shadow: 0 0 10px rgba(32,217,194,.45) !important;
+}
+
+.rai-setting-account .rai-google-status {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 5px 8px !important;
+    border: 1px solid rgba(48,255,170,.20) !important;
+    border-radius: 999px !important;
+    background: rgba(48,255,170,.06) !important;
+    color: #55ffc1 !important;
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1px !important;
+}
+
+.rai-setting-account .rai-google-status::before {
+    content: "" !important;
+    width: 5px !important;
+    height: 5px !important;
+    border-radius: 50% !important;
+    background: #4dffc0 !important;
+    box-shadow: 0 0 8px #4dffc0 !important;
+}
+
+.rai-setting-account .rai-google-arrow {
+    position: relative !important;
+    z-index: 2 !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid rgba(0,255,220,.20) !important;
+    border-radius: 10px !important;
+    background: rgba(0,255,220,.06) !important;
+    color: #76fff1 !important;
+    font-size: 24px !important;
+    line-height: 30px !important;
+    cursor: pointer !important;
+}
+
+.rai-setting-account .rai-google-arrow:hover {
+    background: rgba(0,255,220,.14) !important;
+    border-color: rgba(0,255,220,.45) !important;
+    transform: translateX(2px) !important;
+}
+
+.rai-setting-account #raiLogoutButton {
+    position: relative !important;
+    z-index: 2 !important;
+    flex: 0 0 auto !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    border: 1px solid rgba(255,90,100,.24) !important;
+    border-radius: 9px !important;
+    background: rgba(255,70,85,.07) !important;
+    color: #ff929b !important;
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1px !important;
+    cursor: pointer !important;
+}
+
+.rai-setting-account #raiLogoutButton:hover {
+    background: rgba(255,70,85,.15) !important;
+    border-color: rgba(255,90,100,.5) !important;
+}
+
+@media (max-width: 480px) {
+    .rai-setting-account .rai-google-login {
+        min-height: 66px !important;
+        padding: 9px !important;
+        gap: 9px !important;
+        border-radius: 14px !important;
+    }
+
+    .rai-setting-account .rai-google-logo {
+        flex-basis: 38px !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        border-radius: 11px !important;
+    }
+
+    .rai-setting-account .rai-account-avatar img {
+        width: 38px !important;
+        height: 38px !important;
+    }
+
+    .rai-setting-account .rai-google-status {
+        display: none !important;
+    }
+
+    .rai-setting-account #raiLogoutButton {
+        padding: 0 8px !important;
+        font-size: 7px !important;
+    }
+}
+
+
+/* =========================================================
+   RAI ACCOUNT — PREMIUM FINAL V2
+   ========================================================= */
+
+.rai-setting-account .rai-google-login {
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) auto !important;
+    grid-template-rows: auto auto !important;
+    column-gap: 12px !important;
+    row-gap: 3px !important;
+    align-items: center !important;
+    min-height: 76px !important;
+    padding: 11px 12px !important;
+    border-radius: 17px !important;
+    background:
+        radial-gradient(circle at 8% 50%, rgba(0,255,220,.10), transparent 35%),
+        linear-gradient(135deg, rgba(8,25,29,.96), rgba(8,14,22,.98)) !important;
+    border: 1px solid rgba(0,255,220,.22) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.045),
+        0 8px 25px rgba(0,0,0,.22),
+        0 0 25px rgba(0,255,220,.035) !important;
+}
+
+.rai-setting-account .rai-google-logo {
+    grid-column: 1 !important;
+    grid-row: 1 / 3 !important;
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
+    min-height: 46px !important;
+    border-radius: 14px !important;
+    background: rgba(255,255,255,.055) !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+    box-shadow:
+        0 0 0 1px rgba(0,255,220,.025),
+        0 0 16px rgba(0,255,220,.07) !important;
+}
+
+.rai-setting-account .rai-account-avatar img {
+    width: 46px !important;
+    height: 46px !important;
+    border-radius: 13px !important;
+}
+
+.rai-setting-account .rai-google-text {
+    grid-column: 2 !important;
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+    min-width: 0 !important;
+    padding-right: 3px !important;
+}
+
+.rai-setting-account .rai-google-text strong {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+    gap: 6px !important;
+    font-size: 12px !important;
+    line-height: 17px !important;
+    color: #f1fffd !important;
+}
+
+.rai-setting-account .rai-google-text strong {
+    overflow: visible !important;
+}
+
+.rai-setting-account .rai-google-text small {
+    display: block !important;
+    margin-top: 3px !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    font-size: 10px !important;
+    line-height: 15px !important;
+    color: rgba(200,225,225,.72) !important;
+}
+
+.rai-setting-account .rai-google-status {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    align-self: start !important;
+    margin-top: 1px !important;
+}
+
+.rai-setting-account #raiLogoutButton {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    align-self: end !important;
+    margin-top: 3px !important;
+    height: 27px !important;
+    min-width: 58px !important;
+    padding: 0 9px !important;
+    border-radius: 8px !important;
+    font-size: 7px !important;
+    letter-spacing: .9px !important;
+}
+
+.rai-setting-account .rai-google-arrow {
+    grid-column: 3 !important;
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+}
+
+/* LOGIN STATE */
+.rai-setting-account .rai-google-login:not(.rai-google-logged) {
+    grid-template-columns: 46px minmax(0,1fr) 36px !important;
+    grid-template-rows: 1fr !important;
+}
+
+.rai-setting-account .rai-google-login:not(.rai-google-logged) .rai-google-text {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+}
+
+.rai-setting-account .rai-google-login:not(.rai-google-logged) .rai-google-arrow {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+}
+
+/* MOBILE */
+@media (max-width: 480px) {
+
+    .rai-setting-account .rai-google-login {
+        grid-template-columns: 42px minmax(0,1fr) auto !important;
+        min-height: 74px !important;
+        padding: 10px !important;
+        column-gap: 10px !important;
+    }
+
+    .rai-setting-account .rai-google-logo {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        min-height: 42px !important;
+    }
+
+    .rai-setting-account .rai-account-avatar img {
+        width: 42px !important;
+        height: 42px !important;
+    }
+
+    .rai-setting-account .rai-google-text strong {
+        font-size: 11px !important;
+    }
+
+    .rai-setting-account .rai-google-text small {
+        font-size: 9px !important;
+        line-height: 14px !important;
+    }
+
+    .rai-setting-account .rai-google-status {
+        display: inline-flex !important;
+        padding: 4px 6px !important;
+        font-size: 7px !important;
+    }
+
+    .rai-setting-account #raiLogoutButton {
+        min-width: 52px !important;
+        height: 25px !important;
+        padding: 0 7px !important;
+        font-size: 6px !important;
+    }
+}
+
+
+/* =========================================================
+   RAI ACCOUNT — HARD OVERRIDE / FINAL
+   ========================================================= */
+
+.rai-setting-account {
+    width: 100% !important;
+    margin-top: 18px !important;
+}
+
+.rai-setting-account > label {
+    display: block !important;
+    margin-bottom: 9px !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    letter-spacing: 2px !important;
+    color: #78fff0 !important;
+}
+
+.rai-setting-account .rai-google-login {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-height: 70px !important;
+    box-sizing: border-box !important;
+    padding: 10px 12px !important;
+    gap: 12px !important;
+    border: 1px solid rgba(0, 255, 220, .24) !important;
+    border-radius: 16px !important;
+    background:
+        linear-gradient(
+            135deg,
+            rgba(0, 255, 220, .08),
+            rgba(0, 120, 255, .035)
+        ) !important;
+    box-shadow:
+        inset 0 0 20px rgba(0,255,220,.035),
+        0 0 18px rgba(0,255,220,.04) !important;
+    overflow: hidden !important;
+}
+
+.rai-setting-account .rai-google-login::before {
+    content: "" !important;
+    position: absolute !important;
+    inset: 0 !important;
+    pointer-events: none !important;
+    background: linear-gradient(
+        110deg,
+        transparent 0%,
+        rgba(255,255,255,.045) 48%,
+        transparent 52%
+    ) !important;
+}
+
+.rai-setting-account .rai-google-logo {
+    position: relative !important;
+    flex: 0 0 42px !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    border-radius: 13px !important;
+    overflow: hidden !important;
+    background: rgba(255,255,255,.06) !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+}
+
+.rai-setting-account .rai-google-logo svg {
+    display: block !important;
+    width: 24px !important;
+    height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+}
+
+.rai-setting-account .rai-account-avatar img {
+    display: block !important;
+    width: 42px !important;
+    height: 42px !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: cover !important;
+    border-radius: 12px !important;
+}
+
+.rai-setting-account .rai-account-avatar > span {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    color: #fff !important;
+}
+
+.rai-setting-account .rai-google-text {
+    position: relative !important;
+    z-index: 1 !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    overflow: hidden !important;
+}
+
+.rai-setting-account .rai-google-text strong {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 800 !important;
+    letter-spacing: .5px !important;
+    color: #f2fffd !important;
+}
+
+.rai-setting-account .rai-google-text small {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 10px !important;
+    line-height: 14px !important;
+    color: rgba(190,220,220,.65) !important;
+}
+
+.rai-setting-account .rai-account-check {
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 15px !important;
+    height: 15px !important;
+    border-radius: 50% !important;
+    background: #20d9c2 !important;
+    color: #061312 !important;
+    font-size: 10px !important;
+    font-weight: 1000 !important;
+    box-shadow: 0 0 10px rgba(32,217,194,.45) !important;
+}
+
+.rai-setting-account .rai-google-status {
+    position: relative !important;
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 5px 8px !important;
+    border: 1px solid rgba(48,255,170,.20) !important;
+    border-radius: 999px !important;
+    background: rgba(48,255,170,.06) !important;
+    color: #55ffc1 !important;
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1px !important;
+}
+
+.rai-setting-account .rai-google-status::before {
+    content: "" !important;
+    width: 5px !important;
+    height: 5px !important;
+    border-radius: 50% !important;
+    background: #4dffc0 !important;
+    box-shadow: 0 0 8px #4dffc0 !important;
+}
+
+.rai-setting-account .rai-google-arrow {
+    position: relative !important;
+    z-index: 2 !important;
+    flex: 0 0 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 1px solid rgba(0,255,220,.20) !important;
+    border-radius: 10px !important;
+    background: rgba(0,255,220,.06) !important;
+    color: #76fff1 !important;
+    font-size: 24px !important;
+    line-height: 30px !important;
+    cursor: pointer !important;
+}
+
+.rai-setting-account .rai-google-arrow:hover {
+    background: rgba(0,255,220,.14) !important;
+    border-color: rgba(0,255,220,.45) !important;
+    transform: translateX(2px) !important;
+}
+
+.rai-setting-account #raiLogoutButton {
+    position: relative !important;
+    z-index: 2 !important;
+    flex: 0 0 auto !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    margin: 0 !important;
+    border: 1px solid rgba(255,90,100,.24) !important;
+    border-radius: 9px !important;
+    background: rgba(255,70,85,.07) !important;
+    color: #ff929b !important;
+    font-size: 8px !important;
+    font-weight: 900 !important;
+    letter-spacing: 1px !important;
+    cursor: pointer !important;
+}
+
+.rai-setting-account #raiLogoutButton:hover {
+    background: rgba(255,70,85,.15) !important;
+    border-color: rgba(255,90,100,.5) !important;
+}
+
+@media (max-width: 480px) {
+    .rai-setting-account .rai-google-login {
+        min-height: 66px !important;
+        padding: 9px !important;
+        gap: 9px !important;
+        border-radius: 14px !important;
+    }
+
+    .rai-setting-account .rai-google-logo {
+        flex-basis: 38px !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        border-radius: 11px !important;
+    }
+
+    .rai-setting-account .rai-account-avatar img {
+        width: 38px !important;
+        height: 38px !important;
+    }
+
+    .rai-setting-account .rai-google-status {
+        display: none !important;
+    }
+
+    .rai-setting-account #raiLogoutButton {
+        padding: 0 8px !important;
+        font-size: 7px !important;
+    }
 }
 

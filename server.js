@@ -3,7 +3,9 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
+const os = require("os");
 const Groq = require("groq-sdk");
+const OpenAI = require("openai");
 const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
@@ -12,6 +14,7 @@ const PORT = process.env.PORT || 3000;
 const { setupAuth } = require("./auth");
 
 const { requireLogin } = setupAuth(app);
+app.set("trust proxy", 1);
 
 const exifr = require("exifr");
 const multer = require("multer");
@@ -31,6 +34,17 @@ const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
+const openai = process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
+
+const geminiChat = process.env.GEMINI_API_KEY
+    ? new OpenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+    })
+    : null;
+
 const geminiImage = process.env.GEMINI_API_KEY
     ? new GoogleGenAI({
         apiKey: process.env.GEMINI_API_KEY
@@ -38,6 +52,7 @@ const geminiImage = process.env.GEMINI_API_KEY
     : null;
 
 app.use(express.json({ limit: "30mb" }));
+
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (req, res) => {
@@ -142,11 +157,23 @@ app.post("/api/generate-image", requireLogin, async (req, res) => {
                 data
             );
 
+            const cloudflareError =
+                data?.errors?.[0];
+
+            if (
+                cloudflareError?.code === 3030
+            ) {
+                return res.status(400).json({
+                    error:
+                        "Prompt gambar ditolak oleh sistem keamanan image generator. Coba ubah deskripsi gambarnya."
+                });
+            }
+
             return res.status(
                 response.status || 502
             ).json({
                 error:
-                    data?.errors?.[0]?.message ||
+                    cloudflareError?.message ||
                     data?.error ||
                     "Cloudflare gagal membuat gambar."
             });
@@ -194,6 +221,179 @@ app.post("/api/generate-image", requireLogin, async (req, res) => {
         });
     }
 });
+
+async function readRAILink(message) {
+    if (typeof message !== "string") return null;
+
+    const urlMatch = message.match(
+        /https?:\/\/[^\s<>"']+/i
+    );
+
+    if (!urlMatch) return null;
+
+    let urlText = urlMatch[0].replace(/[),.!?;:]+$/, "");
+
+    let target;
+    try {
+        target = new URL(urlText);
+    } catch {
+        return {
+            error: "URL yang dikirim tidak valid."
+        };
+    }
+
+    if (!["http:", "https:"].includes(target.protocol)) {
+        return {
+            error: "RAI hanya dapat membaca link HTTP atau HTTPS."
+        };
+    }
+
+    const hostname = target.hostname.toLowerCase();
+
+    const blockedHosts = [
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "0.0.0.0"
+    ];
+
+    if (
+        blockedHosts.includes(hostname) ||
+        hostname.endsWith(".localhost") ||
+        hostname.endsWith(".local")
+    ) {
+        return {
+            error: "Link tersebut tidak dapat dibaca oleh RAI."
+        };
+    }
+
+    console.log("RAI LINK DETECTED:", target.href);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(
+        () => controller.abort(),
+        10000
+    );
+
+    try {
+        const response = await fetch(target.href, {
+            method: "GET",
+            redirect: "follow",
+            signal: controller.signal,
+            headers: {
+                "User-Agent":
+                    "RAI-Link-Reader/1.0"
+            }
+        });
+
+        if (!response.ok) {
+            return {
+                error:
+                    "Website tidak dapat dibaca. HTTP " +
+                    response.status
+            };
+        }
+
+        const contentType =
+            response.headers.get("content-type") || "";
+
+        if (
+            !contentType.includes("text/html") &&
+            !contentType.includes("text/plain")
+        ) {
+            return {
+                error:
+                    "Link tersebut bukan halaman web yang dapat dibaca RAI."
+            };
+        }
+
+        const contentLength =
+            Number(response.headers.get("content-length")) || 0;
+
+        if (contentLength > 5 * 1024 * 1024) {
+            return {
+                error:
+                    "Halaman terlalu besar untuk dibaca RAI."
+            };
+        }
+
+        let html = await response.text();
+
+        if (html.length > 5 * 1024 * 1024) {
+            html = html.slice(0, 5 * 1024 * 1024);
+        }
+
+        const titleMatch =
+            html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+
+        const title = titleMatch
+            ? titleMatch[1]
+                .replace(/<[^>]+>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+            : "";
+
+        let text = html
+            .replace(/<script[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style[\s\S]*?<\/style>/gi, " ")
+            .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+            .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&nbsp;/gi, " ")
+            .replace(/&amp;/gi, "&")
+            .replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'")
+            .replace(/&lt;/gi, "<")
+            .replace(/&gt;/gi, ">")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        const MAX_LINK_TEXT = 50000;
+
+        text = text.slice(0, MAX_LINK_TEXT);
+
+        if (!text) {
+            return {
+                error:
+                    "RAI tidak menemukan teks yang dapat dibaca dari halaman tersebut."
+            };
+        }
+
+        console.log(
+            "RAI LINK READ:",
+            text.length,
+            "characters"
+        );
+
+        return {
+            url: target.href,
+            title,
+            text
+        };
+
+    } catch (error) {
+        console.error(
+            "RAI LINK ERROR:",
+            error?.message || error
+        );
+
+        if (error?.name === "AbortError") {
+            return {
+                error:
+                    "Waktu membaca link habis. Website terlalu lambat atau tidak merespons."
+            };
+        }
+
+        return {
+            error:
+                "RAI tidak dapat membaca website tersebut."
+        };
+
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
 app.post("/api/chat", async (req, res) => {
 
     console.log("RAI API CHAT ENTERED");
@@ -530,7 +730,7 @@ Untuk soal sekolah, prioritaskan ketelitian membaca soal terlebih dahulu, kemudi
         const messages = [
             {
                 role: "system",
-                content: systemInstruction
+                content: systemInstruction + "\n\n" + RAI_IDENTITY
             }
         ];
 
@@ -542,6 +742,63 @@ Untuk soal sekolah, prioritaskan ketelitian membaca soal terlebih dahulu, kemudi
         }
 
         const finalUserText = message || "";
+
+        // RAI LINK READER
+        // Link dibaca hanya untuk pesan tanpa attachment gambar/file.
+        let linkData = null;
+
+        if (
+            !image &&
+            !file &&
+            typeof message === "string" &&
+            /https?:\/\/[^\s<>"']+/i.test(message)
+        ) {
+            linkData = await readRAILink(message);
+
+            if (linkData?.error) {
+                console.log(
+                    "RAI LINK READ FAILED:",
+                    linkData.error
+                );
+
+                messages.push({
+                    role: "user",
+                    content:
+                        finalUserText +
+                        "\n\nRAI LINK READER STATUS:\n" +
+                        linkData.error
+                });
+            } else if (linkData) {
+                console.log(
+                    "RAI LINK TITLE:",
+                    linkData.title || "(tanpa judul)"
+                );
+
+                messages.push({
+                    role: "user",
+                    content:
+                        "USER MESSAGE:\n" +
+                        finalUserText +
+                        "\n\n" +
+                        "RAI LINK READER RESULT:\n" +
+                        "URL: " +
+                        linkData.url +
+                        "\n" +
+                        "TITLE: " +
+                        (linkData.title || "(tanpa judul)") +
+                        "\n\n" +
+                        "PAGE CONTENT:\n" +
+                        linkData.text +
+                        "\n\n" +
+                        "INSTRUCTION: Gunakan isi halaman di atas sebagai sumber utama untuk menjawab pertanyaan pengguna tentang link tersebut. Jangan mengarang informasi yang tidak terdapat dalam isi halaman."
+                });
+            } else {
+                messages.push({
+                    role: "user",
+                    content: finalUserText
+                });
+            }
+        }
 
         let requestModel = "openai/gpt-oss-20b";
 
@@ -577,20 +834,91 @@ Untuk soal sekolah, prioritaskan ketelitian membaca soal terlebih dahulu, kemudi
                 image.length,
                 "characters"
             );
-        } else {
+        } else if (!linkData) {
             messages.push({
                 role: "user",
                 content: finalUserText
             });
         }
 
-        console.log("RAI DEBUG BEFORE GROQ:", requestModel);
-        const response = await groq.chat.completions.create({
-            model: requestModel,
-            messages,
-            max_completion_tokens: 4096,
-            stream: true
-        });
+        const hasImage =
+            typeof image === "string" &&
+            image.startsWith("data:image/");
+
+        const providers = hasImage
+            ? [
+                {
+                    name: "Groq Vision",
+                    client: groq,
+                    model: requestModel
+                }
+            ]
+            : [
+                ...(openai ? [{
+                    name: "OpenAI",
+                    client: openai,
+                    model: process.env.OPENAI_MODEL || "gpt-5.5"
+                }] : []),
+                {
+                    name: "Groq",
+                    client: groq,
+                    model: requestModel
+                },
+                ...(geminiChat ? [{
+                    name: "Gemini",
+                    client: geminiChat,
+                    model: process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash"
+                }] : [])
+            ];
+
+        let response = null;
+        let lastProviderError = null;
+        let activeProvider = "";
+
+        for (const provider of providers) {
+            try {
+                console.log(
+                    "RAI: mencoba provider",
+                    provider.name,
+                    "| model:",
+                    provider.model
+                );
+
+                const options = {
+                    model: provider.model,
+                    messages,
+                    stream: true,
+                    ...(provider.name === "Gemini"
+                        ? { max_tokens: 4096 }
+                        : { max_completion_tokens: 4096 }),
+                    ...(provider.name === "Groq" ||
+                        provider.name === "Groq Vision"
+                        ? { tool_choice: "none" }
+                        : {})
+                };
+
+                response = await provider.client.chat.completions.create(options);
+                activeProvider = provider.name;
+                console.log("RAI: provider aktif =", activeProvider);
+                break;
+            } catch (error) {
+                lastProviderError = error;
+                console.error(
+                    "RAI: provider gagal:",
+                    provider.name,
+                    "| status:",
+                    error?.status || error?.code || "tidak diketahui",
+                    "| pesan:",
+                    error?.message || error
+                );
+            }
+        }
+
+        if (!response) {
+            throw lastProviderError || new Error(
+                "Semua provider AI tidak tersedia atau belum dikonfigurasi."
+            );
+        }
 
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.setHeader("Transfer-Encoding", "chunked");
@@ -639,6 +967,193 @@ Untuk soal sekolah, prioritaskan ketelitian membaca soal terlebih dahulu, kemudi
 
  
 // ================================
+
+// ================================
+// RAI EDIT GENERATED IMAGE
+// ================================
+
+app.post("/api/edit-image", requireLogin, async (req, res) => {
+    try {
+        const accountId =
+            process.env.CLOUDFLARE_ACCOUNT_ID;
+
+        const apiToken =
+            process.env.CLOUDFLARE_API_TOKEN;
+
+        if (!accountId || !apiToken) {
+            return res.status(500).json({
+                error:
+                    "CLOUDFLARE_ACCOUNT_ID atau CLOUDFLARE_API_TOKEN belum tersedia."
+            });
+        }
+
+        const prompt =
+            typeof req.body.prompt === "string"
+                ? req.body.prompt.trim()
+                : "";
+
+        const inputImage =
+            typeof req.body.image === "string"
+                ? req.body.image
+                : "";
+
+        if (!prompt) {
+            return res.status(400).json({
+                error: "Instruksi edit gambar kosong."
+            });
+        }
+
+        if (!inputImage) {
+            return res.status(400).json({
+                error: "Gambar sebelumnya tidak ditemukan."
+            });
+        }
+
+        const match =
+            inputImage.match(
+                /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/
+            );
+
+        if (!match) {
+            return res.status(400).json({
+                error: "Format gambar tidak valid."
+            });
+        }
+
+        const mimeType = match[1];
+        const base64Data = match[2];
+
+        const imageBuffer =
+            Buffer.from(base64Data, "base64");
+
+        console.log(
+            "RAI IMAGE EDIT:",
+            prompt,
+            "| input:",
+            imageBuffer.length,
+            "bytes"
+        );
+
+        const form = new FormData();
+
+        form.append(
+            "prompt",
+            prompt
+        );
+
+        form.append(
+            "input_image_0",
+            new Blob(
+                [imageBuffer],
+                { type: mimeType }
+            ),
+            "rai-generated-image." +
+                (mimeType.split("/")[1] || "jpg")
+        );
+
+        form.append("width", "768");
+        form.append("height", "768");
+
+        const response =
+            await fetch(
+                `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/black-forest-labs/flux-2-klein-4b`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization:
+                            `Bearer ${apiToken}`
+                    },
+                    body: form
+                }
+            );
+
+        const responseText =
+            await response.text();
+
+        let data;
+
+        try {
+            data =
+                JSON.parse(responseText);
+        } catch {
+            console.error(
+                "RAI IMAGE EDIT INVALID RESPONSE:",
+                responseText.slice(0, 500)
+            );
+
+            return res.status(502).json({
+                error:
+                    "Cloudflare mengembalikan response edit yang tidak valid."
+            });
+        }
+
+        if (
+            !response.ok ||
+            !data.success ||
+            !data.result?.image
+        ) {
+            console.error(
+                "RAI IMAGE EDIT CLOUDFLARE ERROR:",
+                response.status,
+                data
+            );
+
+            const cloudflareError =
+                data?.errors?.[0];
+
+            if (
+                cloudflareError?.code === 3030
+            ) {
+                return res.status(400).json({
+                    error:
+                        "Edit gambar ditolak oleh sistem keamanan image generator. Coba ubah instruksi edit."
+                });
+            }
+
+            return res.status(
+                response.status || 502
+            ).json({
+                error:
+                    cloudflareError?.message ||
+                    data?.error ||
+                    "Cloudflare gagal mengedit gambar."
+            });
+        }
+
+        const rawImage =
+            data.result.image;
+
+        const image =
+            rawImage.startsWith("data:")
+                ? rawImage
+                : `data:image/jpeg;base64,${rawImage}`;
+
+        console.log(
+            "RAI IMAGE EDIT GENERATED:",
+            image.length,
+            "characters"
+        );
+
+        return res.json({
+            success: true,
+            image
+        });
+
+    } catch (error) {
+        console.error(
+            "RAI IMAGE EDIT ERROR:",
+            error
+        );
+
+        return res.status(500).json({
+            error:
+                error?.message ||
+                "RAI gagal mengedit gambar."
+        });
+    }
+});
+
+
 // RAI TRACK IMAGE - EXIF / GPS
 // ================================
 
@@ -759,6 +1274,135 @@ app.post(
 );
 
 
+// ================================
+// RAI REALTIME SYSTEM MONITOR
+// ================================
+
+let raiPreviousCpu = null;
+
+function getRAICpuUsage() {
+    const cpus = os.cpus();
+
+    let idle = 0;
+    let total = 0;
+
+    for (const cpu of cpus) {
+        idle += cpu.times.idle;
+
+        total +=
+            cpu.times.user +
+            cpu.times.nice +
+            cpu.times.sys +
+            cpu.times.idle +
+            cpu.times.irq;
+    }
+
+    if (!raiPreviousCpu) {
+        raiPreviousCpu = {
+            idle,
+            total
+        };
+
+        return 0;
+    }
+
+    const idleDiff =
+        idle - raiPreviousCpu.idle;
+
+    const totalDiff =
+        total - raiPreviousCpu.total;
+
+    raiPreviousCpu = {
+        idle,
+        total
+    };
+
+    if (totalDiff <= 0) {
+        return 0;
+    }
+
+    const usage =
+        100 -
+        (idleDiff / totalDiff * 100);
+
+    return Math.max(
+        0,
+        Math.min(
+            100,
+            usage
+        )
+    );
+}
+
+app.get("/api/system-stats", (req, res) => {
+
+    try {
+
+        const totalMemory =
+            os.totalmem();
+
+        const freeMemory =
+            os.freemem();
+
+        const usedMemory =
+            totalMemory -
+            freeMemory;
+
+        const memoryPercent =
+            (usedMemory / totalMemory) * 100;
+
+        res.setHeader(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate"
+        );
+
+        res.json({
+
+            success: true,
+
+            cpu:
+                Number(
+                    getRAICpuUsage()
+                        .toFixed(1)
+                ),
+
+            memory:
+                Number(
+                    memoryPercent
+                        .toFixed(1)
+                ),
+
+            memoryUsed:
+                usedMemory,
+
+            memoryTotal:
+                totalMemory,
+
+            timestamp:
+                Date.now()
+
+        });
+
+    } catch (error) {
+
+        console.error(
+            "RAI SYSTEM MONITOR ERROR:",
+            error
+        );
+
+        res.status(500).json({
+
+            success: false,
+
+            error:
+                "System monitor gagal membaca statistik."
+
+        });
+    }
+});
+
+
+
 app.listen(PORT, "0.0.0.0", () => {
 
     console.log("");
@@ -768,3 +1412,13 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log(`RAI ONLINE → http://localhost:${PORT}`);
     console.log("");
 });
+
+const RAI_IDENTITY = `
+RAI adalah REPUBLIK OF AI.
+Developer RAI: Tyo-exe.
+
+Jika pengguna bertanya siapa pembuat, developer, atau pengembang RAI,
+jawab bahwa RAI dikembangkan oleh Tyo-exe.
+Jangan mengarang nama developer lain.
+`;
+
