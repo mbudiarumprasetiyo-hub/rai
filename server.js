@@ -4,6 +4,7 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
 const os = require("os");
+const { execFile } = require("child_process");
 const Groq = require("groq-sdk");
 const OpenAI = require("openai");
 const { GoogleGenAI } = require("@google/genai");
@@ -13,8 +14,8 @@ const PORT = process.env.PORT || 3000;
 
 const { setupAuth } = require("./auth");
 
-const { requireLogin } = setupAuth(app);
 app.set("trust proxy", 1);
+const { requireLogin } = setupAuth(app);
 
 const exifr = require("exifr");
 const multer = require("multer");
@@ -64,7 +65,7 @@ app.get("/", (req, res) => {
 // RAI ENGINE VERSION / UPDATE CHECK
 // ========================================
 
-const RAI_ENGINE_VERSION = "2.4.0";
+const RAI_ENGINE_VERSION = "2.4.1";
 
 app.get("/api/engine-update", async (req, res) => {
     try {
@@ -118,6 +119,86 @@ app.get("/api/engine-update", async (req, res) => {
     }
 });
 
+
+
+// ========================================
+// RAI ENGINE LOCAL INSTALLER
+// ========================================
+
+let raiUpdateRunning = false;
+
+app.post("/api/engine-update/install", (req, res) => {
+    const remoteAddress = req.socket.remoteAddress || "";
+
+    const isLoopback = [
+        "127.0.0.1",
+        "::1",
+        "::ffff:127.0.0.1"
+    ].includes(remoteAddress);
+
+    const origin = req.get("origin");
+
+    const allowedOrigins = [
+        `http://localhost:${PORT}`,
+        `http://127.0.0.1:${PORT}`
+    ];
+
+    if (!isLoopback || !allowedOrigins.includes(origin)) {
+        return res.status(403).json({
+            success: false,
+            error: "Akses installer hanya diizinkan dari browser lokal RAI."
+        });
+    }
+
+    if (raiUpdateRunning) {
+        return res.status(409).json({
+            success: false,
+            error: "Updater RAI sedang berjalan."
+        });
+    }
+
+    raiUpdateRunning = true;
+
+    const updaterPath = path.join(__dirname, "rai-updater.sh");
+
+    execFile(
+        updaterPath,
+        [],
+        {
+            cwd: __dirname,
+            env: {
+                ...process.env,
+                RAI_UPDATE_AUTO: "1"
+            },
+            maxBuffer: 4 * 1024 * 1024
+        },
+        (error, stdout, stderr) => {
+            raiUpdateRunning = false;
+
+            const output = [stdout, stderr]
+                .filter(Boolean)
+                .join("\n")
+                .slice(-12000);
+
+            if (error) {
+                console.error("RAI ENGINE INSTALL FAILED:", error.message);
+
+                return res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    output
+                });
+            }
+
+            console.log("RAI ENGINE INSTALL:", output);
+
+            res.json({
+                success: true,
+                output
+            });
+        }
+    );
+});
 
 
 app.post("/api/generate-image", requireLogin, async (req, res) => {

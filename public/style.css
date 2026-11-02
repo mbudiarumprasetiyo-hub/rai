@@ -4288,3 +4288,99 @@ html.rai-no-animations *::after {
     opacity: .55;
     cursor: wait;
 }
+
+/* =========================================
+   RAI SETTINGS — COMPACT MOBILE V2
+   ========================================= */
+
+@media (max-width: 600px) {
+    #raiSettingsPanel {
+        width: min(300px, calc(100vw - 24px));
+        max-height: calc(100dvh - 76px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        box-sizing: border-box;
+        padding: 11px;
+        border-radius: 12px;
+        font-size: 12px;
+    }
+
+    .rai-settings-header {
+        margin-bottom: 8px;
+        font-size: 11px;
+    }
+
+    .rai-settings-header button {
+        font-size: 17px;
+    }
+
+    .rai-setting-row {
+        gap: 8px;
+        padding: 7px 0;
+    }
+
+    .rai-setting-row label {
+        font-size: 9px;
+        letter-spacing: 0.5px;
+    }
+
+    .rai-setting-row select {
+        min-width: 108px;
+        max-width: 145px;
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+
+    .rai-font-control {
+        gap: 6px;
+    }
+
+    .rai-font-control button,
+    .rai-toggle {
+        min-width: 32px;
+        min-height: 28px;
+        font-size: 12px;
+    }
+
+    #raiFontSizeValue {
+        min-width: 38px;
+        font-size: 10px;
+    }
+
+    .rai-settings-actions {
+        gap: 7px;
+        margin-top: 10px;
+    }
+
+    .rai-settings-actions button {
+        padding: 7px;
+        font-size: 11px;
+    }
+
+    .rai-engine-updater {
+        margin-top: 12px;
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .rai-engine-title {
+        font-size: 10px;
+        letter-spacing: 0.8px;
+    }
+
+    .rai-engine-status,
+    .rai-engine-release {
+        font-size: 10px;
+        line-height: 1.4;
+    }
+
+    .rai-engine-update-button {
+        margin-top: 8px;
+        padding: 9px;
+        font-size: 11px;
+    }
+
+    .rai-setting-account {
+        font-size: 11px;
+    }
+}

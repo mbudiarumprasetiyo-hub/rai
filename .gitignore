@@ -31,3 +31,6 @@ rai-test-image.json
 rai-monitor-block.txt
 rai-monitor-css.txt
 rai-html-monitor.patch
+
+# RAI account database - NEVER upload
+data/

@@ -1,16 +1,20 @@
 {
-  "version": "2.4.1",
-  "changelog": "RAI Engine 2.4.1 - Initial packaged updater release.",
-  "release_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/tag/v2.4.1",
-  "asset_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/download/v2.4.1/rai-engine-2.4.1.zip",
-  "sha256": "1ec9aad8e5d7d1b00fa81f436ba4c852490d8015e97c5ec3111a357d5f749816",
+  "version": "2.4.2",
+  "changelog": "RAI Engine 2.4.2 - Email and password authentication, updated account interface, dependency management, notification improvements, and updater support.",
+  "release_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/tag/v2.4.2",
+  "asset_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/download/v2.4.2/rai-engine-2.4.2.zip",
+  "sha256": "d4a7391b6d8fbc479176fc57d8d36ed23b12d5a7f0cb5a02fc3932a491cf896c",
   "files": [
     "server.js",
+    "auth.js",
+    "public/login.html",
     "public/index.html",
     "public/script.js",
     "public/style.css",
     "public/notification.js",
     "public/service-worker.js",
-    "public/rai-logo.png"
+    "public/rai-logo.png",
+    "package.json",
+    "package-lock.json"
   ]
 }
