@@ -23,6 +23,8 @@ self.addEventListener("message", event => {
             {
                 body:
                     "RAI sudah selesai menjawab pesan kamu.",
+                icon: "/rai-logo.png",
+                badge: "/rai-logo.png",
                 tag: "rai-response",
                 renotify: true
             }

@@ -3013,6 +3013,29 @@ async function sendMessage() {
             new TextDecoder();
 
         let receivedText = "";
+        let displayedLength = 0;
+
+        // RAI TYPEWRITER ANIMATION
+        const raiTypingTimer = setInterval(() => {
+            if (stopRequested) return;
+
+            const pending = receivedText.length - displayedLength;
+            if (pending <= 0) return;
+
+            const batch = pending > 1000 ? 20
+                        : pending > 300  ? 10
+                        : 2;
+
+            displayedLength = Math.min(
+                receivedText.length,
+                displayedLength + batch
+            );
+
+            paragraph.textContent =
+                receivedText.slice(0, displayedLength);
+
+            chat.scrollTop = chat.scrollHeight;
+        }, 10);
 
         console.log(
             "RAI STREAM READER READY"
@@ -3065,13 +3088,8 @@ async function sendMessage() {
             );
 
             /*
-             * LANGSUNG TAMPILKAN HASIL STREAM
+             * Jawaban ditampilkan oleh typewriter animation.
              */
-            paragraph.textContent =
-                receivedText;
-
-            chat.scrollTop =
-                chat.scrollHeight;
         }
 
         console.timeEnd("RAI TOTAL");
@@ -3083,12 +3101,20 @@ async function sendMessage() {
             decoder.decode();
 
         if (finalText) {
-
             receivedText += finalText;
-
-            paragraph.textContent =
-                receivedText;
         }
+
+        // Tunggu animasi sampai seluruh teks tampil
+        while (
+            displayedLength < receivedText.length &&
+            !stopRequested
+        ) {
+            await new Promise(resolve =>
+                setTimeout(resolve, 10)
+            );
+        }
+
+        clearInterval(raiTypingTimer);
 
         console.log(
             "RAI FRONTEND RECEIVED:",
@@ -3150,6 +3176,18 @@ async function sendMessage() {
             saveAIMessage(
                 receivedText
             );
+
+            // RAI AUTO VOICE: jalankan hanya setelah jawaban selesai
+            if (raiSettings.sound && raiSettings.autoSpeak) {
+                setTimeout(() => {
+                    if (!stopRequested) {
+                        console.log("RAI AUTO VOICE");
+                        speakRAI(receivedText);
+                    }
+                }, 250);
+            }
+
+            playRAISound("success");
 
             if (
                 typeof window.notifyRAIFinished ===
@@ -3534,6 +3572,19 @@ function raiMonitorPulse(id) {
 
 
 // ==============================
+
+function initRAIDeviceInfo() {
+    const el = document.getElementById("hardwareDevice");
+    if (!el) return;
+
+    const ua = navigator.userAgent || "";
+    el.textContent = /X6833B/i.test(ua)
+        ? "(INFINIX NOTE 30)"
+        : "(ANDROID DEVICE)";
+}
+
+initRAIDeviceInfo();
+
 // CPU + MEMORY
 // ==============================
 
@@ -4239,7 +4290,8 @@ let raiSettings = {
     personality: "normal",
     fontSize: 100,
     animations: true,
-    sound: false
+    sound: false,
+    autoSpeak: false
 };
 
 function loadRAISettings() {
@@ -4326,6 +4378,13 @@ function applyRAISettings() {
     if (sound)
         sound.textContent =
             raiSettings.sound ? "ON" : "OFF";
+
+    const autoVoice =
+        document.getElementById("raiAutoSpeakToggle");
+
+    if (autoVoice)
+        autoVoice.textContent =
+            raiSettings.autoSpeak ? "ON" : "OFF";
 }
 
 function changeRAIFont(direction) {
@@ -4351,6 +4410,20 @@ function toggleRAIAnimations() {
     applyRAISettings();
 }
 
+function toggleRAIAutoSpeak() {
+    raiSettings.autoSpeak = !raiSettings.autoSpeak;
+    saveRAISettings();
+    applyRAISettings();
+
+    if (raiSettings.autoSpeak && !raiSettings.sound) {
+        raiSettings.sound = true;
+        saveRAISettings();
+        applyRAISettings();
+    }
+
+    playRAISound("success");
+}
+
 function toggleRAISound() {
 
     raiSettings.sound =
@@ -4367,7 +4440,8 @@ function resetRAISettings() {
         personality: "normal",
         fontSize: 100,
         animations: true,
-        sound: false
+        sound: false,
+        autoSpeak: false
     };
 
     saveRAISettings();
@@ -5036,3 +5110,251 @@ document.addEventListener("click", async function (event) {
     }
 });
 
+
+
+/* =========================================
+   RAI CYBER AUDIO + VOICE INPUT
+========================================= */
+
+let raiRecognition = null;
+let raiMicActive = false;
+
+function toggleRAIMicrophone() {
+    const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    const micButton = document.getElementById("raiMicButton");
+
+    if (!SpeechRecognition) {
+        alert("Browser ini belum mendukung Voice Recognition. Coba Chrome Android.");
+        return;
+    }
+
+    if (raiMicActive && raiRecognition) {
+        raiRecognition.stop();
+        return;
+    }
+
+    raiRecognition = new SpeechRecognition();
+    raiRecognition.lang = "id-ID";
+    raiRecognition.continuous = false;
+    raiRecognition.interimResults = true;
+
+    raiRecognition.onstart = () => {
+        raiMicActive = true;
+        if (micButton) {
+            micButton.textContent = "🔴";
+            micButton.classList.add("rai-mic-active");
+            micButton.title = "Sedang mendengarkan...";
+        }
+        playRAICyberEffect("listen");
+    };
+
+    raiRecognition.onresult = (event) => {
+        let finalText = "";
+        let interimText = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                finalText += transcript;
+            } else {
+                interimText += transcript;
+            }
+        }
+
+        const input = document.getElementById("message");
+
+        if (input) {
+            input.value = finalText || interimText;
+        }
+
+        if (finalText.trim()) {
+            raiRecognition.stop();
+
+            if (input) {
+                input.value = finalText.trim();
+                setTimeout(() => sendMessage(), 350);
+            }
+        }
+    };
+
+    raiRecognition.onerror = (event) => {
+        console.warn("RAI MICROPHONE ERROR:", event.error);
+        raiMicActive = false;
+        resetRAIMicButton();
+    };
+
+    raiRecognition.onend = () => {
+        raiMicActive = false;
+        resetRAIMicButton();
+    };
+
+    try {
+        raiRecognition.start();
+    } catch (error) {
+        console.warn("RAI MIC START ERROR:", error);
+    }
+}
+
+function resetRAIMicButton() {
+    const button = document.getElementById("raiMicButton");
+
+    if (button) {
+        button.textContent = "🎙";
+        button.classList.remove("rai-mic-active");
+        button.title = "Voice Input";
+    }
+}
+
+function playRAICyberEffect(type = "click") {
+    if (!raiSettings || !raiSettings.sound) return;
+
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        const ctx = new AudioContext();
+        const now = ctx.currentTime;
+
+        const sequences = {
+            click: [520, 780],
+            send: [420, 620, 920],
+            success: [620, 880, 1200],
+            listen: [360, 520, 760],
+            error: [300, 220]
+        };
+
+        const frequencies = sequences[type] || sequences.click;
+
+        frequencies.forEach((frequency, index) => {
+            const oscillator = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            oscillator.type = "triangle";
+            oscillator.frequency.setValueAtTime(
+                frequency,
+                now + index * 0.075
+            );
+
+            gain.gain.setValueAtTime(0.0001, now + index * 0.075);
+            gain.gain.exponentialRampToValueAtTime(
+                0.035,
+                now + index * 0.075 + 0.015
+            );
+            gain.gain.exponentialRampToValueAtTime(
+                0.0001,
+                now + index * 0.075 + 0.12
+            );
+
+            oscillator.connect(gain);
+            gain.connect(ctx.destination);
+
+            oscillator.start(now + index * 0.075);
+            oscillator.stop(now + index * 0.075 + 0.13);
+        });
+
+        setTimeout(() => ctx.close(), 600);
+    } catch (error) {
+        console.warn("RAI CYBER AUDIO ERROR:", error);
+    }
+}
+
+
+// Wrapper: mempertahankan sound engine lama, menambah lapisan cyberpunk
+const raiOriginalPlaySound = window.playRAISound || playRAISound;
+
+window.playRAISound = function(type = "click") {
+    try {
+        raiOriginalPlaySound(type);
+    } catch (e) {}
+
+    playRAICyberEffect(type);
+};
+
+
+// ========================================
+// RAI ENGINE UPDATER V1
+// ========================================
+
+const RAI_ENGINE_VERSION = "2.4.0";
+
+function raiCompareVersions(a, b) {
+    const aa = String(a).split(".").map(Number);
+    const bb = String(b).split(".").map(Number);
+
+    for (let i = 0; i < Math.max(aa.length, bb.length); i++) {
+        const x = aa[i] || 0;
+        const y = bb[i] || 0;
+
+        if (x > y) return 1;
+        if (x < y) return -1;
+    }
+
+    return 0;
+}
+
+async function checkRAIEngineUpdate() {
+    const button = document.getElementById("raiEngineUpdateButton");
+    const status = document.getElementById("raiEngineStatus");
+    const release = document.getElementById("raiEngineRelease");
+    const version = document.getElementById("raiEngineVersion");
+
+    if (!button || !status || !release || !version) return;
+
+    button.disabled = true;
+    button.textContent = "CHECKING ENGINE...";
+    status.textContent = "CONNECTING TO RAI UPDATE SERVER...";
+    release.textContent = "";
+
+    try {
+        const response = await fetch("/api/engine-update", {
+            cache: "no-store"
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || "Update server unavailable");
+        }
+
+        version.textContent = data.currentVersion;
+
+        if (raiCompareVersions(data.latestVersion, data.currentVersion) > 0) {
+            status.textContent =
+                "UPDATE AVAILABLE // " + data.latestVersion;
+
+            release.textContent =
+                "CHANGELOG:\n" + (data.changelog || "No changelog available.");
+
+            button.disabled = false;
+            button.textContent = "OPEN ENGINE RELEASE";
+
+            button.onclick = function () {
+                if (data.releaseUrl) {
+                    window.open(data.releaseUrl, "_blank", "noopener");
+                } else {
+                    status.textContent = "RELEASE URL NOT AVAILABLE";
+                }
+            };
+        } else {
+            status.textContent =
+                "ENGINE UP TO DATE // " + data.currentVersion;
+
+            release.textContent =
+                "RAI Engine sudah menggunakan versi terbaru.";
+
+            button.disabled = false;
+            button.textContent = "CHECK AGAIN";
+            button.onclick = checkRAIEngineUpdate;
+        }
+
+    } catch (error) {
+        status.textContent = "UPDATE CHECK FAILED";
+        release.textContent = error.message || "Connection error";
+
+        button.disabled = false;
+        button.textContent = "RETRY";
+        button.onclick = checkRAIEngineUpdate;
+    }
+}

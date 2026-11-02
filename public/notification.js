@@ -70,6 +70,15 @@ async function notifyRAIFinished() {
         "RAI NOTIFICATION: notifyRAIFinished() DIPANGGIL"
     );
 
+    // Notifikasi native Android saat berjalan di APK RAI.
+    if (window.RAINative && typeof window.RAINative.responseFinished === "function") {
+        try {
+            window.RAINative.responseFinished();
+        } catch (e) {
+            console.error("RAI ANDROID NOTIFICATION ERROR:", e);
+        }
+    }
+
     if (!raiNotificationReady) {
         console.log(
             "RAI NOTIFICATION: permission belum granted"
@@ -93,6 +102,8 @@ async function notifyRAIFinished() {
             {
                 body:
                     "RAI sudah selesai menjawab pesan kamu.",
+                icon: "/rai-logo.png",
+                badge: "/rai-logo.png",
                 tag: "rai-response",
                 renotify: true
             }

@@ -73,6 +73,17 @@
         >OFF</button>
     </div>
 
+    <div class="rai-setting-row">
+        <label>AI VOICE</label>
+
+        <button
+            id="raiAutoSpeakToggle"
+            class="rai-toggle"
+            type="button"
+            onclick="toggleRAIAutoSpeak()"
+        >OFF</button>
+    </div>
+
     <div class="rai-setting-account">
         <label>ACCOUNT</label>
 
@@ -110,6 +121,28 @@
             type="button"
             onclick="toggleRAISettings()"
         >CLOSE</button>
+    </div>
+
+    <div id="raiEngineUpdater" class="rai-engine-updater">
+        <div class="rai-engine-title">
+            <span>RAI NEURAL ENGINE</span>
+            <span class="rai-engine-version" id="raiEngineVersion">2.4.0</span>
+        </div>
+
+        <div class="rai-engine-status" id="raiEngineStatus">
+            ENGINE READY // VERSION 2.4.0
+        </div>
+
+        <div class="rai-engine-release" id="raiEngineRelease"></div>
+
+        <button
+            id="raiEngineUpdateButton"
+            class="rai-engine-update-button"
+            type="button"
+            onclick="checkRAIEngineUpdate()"
+        >
+            CHECK FOR UPDATES
+        </button>
     </div>
 
 </div>
@@ -206,7 +239,7 @@
             <aside class="sidebar">
 
                 <div class="side-title">
-                    <span>◈</span> HARD WARE SYSTEM INFORMATION
+                    <span>◈</span> HARDWARE SYSTEM INFORMATION <small id="hardwareDevice">(DETECTING DEVICE)</small>
                 </div>
 
                 <div class="system-card">
@@ -420,7 +453,9 @@
                         rows="1"
                     ></textarea>
 
-                    <button id="sendBtn" type="button" onclick="sendMessage()">
+                    <button id="raiMicButton" type="button" class="rai-mic-button"
+            onclick="toggleRAIMicrophone()" title="Voice Input">🎙</button>
+        <button id="sendBtn" type="button" onclick="sendMessage()">
                         SEND
                     </button>
 

@@ -59,6 +59,67 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+
+// ========================================
+// RAI ENGINE VERSION / UPDATE CHECK
+// ========================================
+
+const RAI_ENGINE_VERSION = "2.4.0";
+
+app.get("/api/engine-update", async (req, res) => {
+    try {
+        const manifestUrl =
+            "https://raw.githubusercontent.com/mbudiarumprasetiyo-hub/rai/main/rai-engine.json";
+
+        const response = await fetch(manifestUrl, {
+            headers: {
+                "Accept": "application/json",
+                "User-Agent": "RAI-Engine-Updater"
+            },
+            signal: AbortSignal.timeout(10000)
+        });
+
+        if (!response.ok) {
+            return res.status(503).json({
+                success: false,
+                error: "RAI update manifest belum tersedia di GitHub."
+            });
+        }
+
+        const manifest = await response.json();
+
+        if (
+            typeof manifest.version !== "string" ||
+            !/^\d+\.\d+\.\d+$/.test(manifest.version)
+        ) {
+            return res.status(502).json({
+                success: false,
+                error: "Manifest versi RAI tidak valid."
+            });
+        }
+
+        res.setHeader("Cache-Control", "no-store");
+
+        res.json({
+            success: true,
+            currentVersion: RAI_ENGINE_VERSION,
+            latestVersion: manifest.version,
+            changelog: manifest.changelog || "",
+            releaseUrl: manifest.release_url || ""
+        });
+
+    } catch (error) {
+        console.error("RAI ENGINE UPDATE CHECK:", error.message);
+
+        res.status(503).json({
+            success: false,
+            error: "Gagal terhubung ke server update RAI."
+        });
+    }
+});
+
+
+
 app.post("/api/generate-image", requireLogin, async (req, res) => {
 
     try {
@@ -678,7 +739,23 @@ Untuk percakapan santai tentang coding, tetap boleh menggunakan gaya ringan tanp
             });
         }
 
+        const raiCurrentDateTime = new Intl.DateTimeFormat("id-ID", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23",
+            timeZone: "Asia/Jakarta"
+        }).format(new Date());
+
         const systemInstruction = `
+CURRENT DATE AND TIME:
+${raiCurrentDateTime} WIB
+
+
 Kamu adalah RAI — Republik Of AI.
 
 Kamu adalah asisten AI yang cepat, jelas, natural, dan membantu.
@@ -686,24 +763,30 @@ Kamu adalah asisten AI yang cepat, jelas, natural, dan membantu.
 ${selectedPersonality}
 
 ATURAN JAWABAN:
-- Jawab langsung ke inti.
-- Berikan jawaban yang lengkap dan mudah dipahami.
-- Untuk pertanyaan sederhana, jawab secukupnya.
-- Untuk pertanyaan yang membutuhkan penjelasan, berikan penjelasan yang panjang dan lengkap.
-- Jangan sengaja memendekkan jawaban hanya agar cepat selesai.
-- Jangan gunakan Markdown.
-- Jangan gunakan simbol dekoratif.
-- Jangan gunakan ###, ##, #, **, *, __, ---, atau blok kode.
-- Jika perlu membuat daftar, gunakan nomor biasa atau kalimat terpisah tanpa simbol dekoratif.
+- Utamakan jawaban langsung ke inti, ringkas, akurat, dan mudah dipahami.
+- Untuk pertanyaan sederhana, berikan jawaban singkat tanpa pembukaan panjang.
+- Tambahkan sedikit konteks atau saran hanya jika benar-benar membantu.
+- Jangan otomatis memberikan penjelasan panjang jika pengguna tidak memintanya.
+- Jika topik memiliki penjelasan lebih mendalam yang mungkin berguna, boleh tawarkan secara singkat untuk menjelaskan lebih lengkap. Jangan mengulang tawaran tersebut pada setiap jawaban.
+- Jika pengguna meminta detail, lengkap, panjang, langkah demi langkah, atau analisis, berikan jawaban sesuai permintaan.
+- Jangan menghilangkan informasi penting hanya demi membuat jawaban singkat.
+- Gunakan Markdown hanya jika membantu keterbacaan, misalnya kode, daftar, rumus, atau tabel. Hindari dekorasi dan heading berlebihan.
 - Jangan membuat pembukaan seperti "Halo! Saya RAI" jika tidak diperlukan.
 - Jangan membuat kesimpulan atau penutup yang tidak diperlukan.
 - Jangan mengulang pertanyaan pengguna.
-- Gunakan bahasa Indonesia kecuali pengguna meminta bahasa lain.
-- Sesuaikan tingkat keseriusan jawaban dengan konteks percakapan.
-- Jangan memaksakan gaya personality jika bertentangan dengan kebutuhan pengguna.
-- Jika pengguna meminta tugas sekolah atau penjelasan penting, prioritaskan ketepatan dan kejelasan.
-- Jika pengguna sedang bercanda, boleh mengikuti suasana dengan humor ringan.
+- Gunakan bahasa pengguna, terutama bahasa Indonesia, kecuali pengguna meminta bahasa lain.
+- Sesuaikan tingkat keseriusan dengan konteks dan personality.
+- Jangan memaksakan personality jika bertentangan dengan kebutuhan pengguna.
+- Untuk tugas sekolah, prioritaskan ketepatan dan format yang diminta.
 - Pertahankan konteks percakapan sebelumnya selama masih relevan.
+
+TANGGAL DAN WAKTU:
+- Tanggal dan waktu aktual saat request diterima tersedia di bagian CURRENT DATE AND TIME.
+- Gunakan informasi tersebut jika pengguna bertanya tentang waktu, tanggal, hari, atau konteks waktu saat ini.
+- Zona waktu yang diberikan adalah Asia/Jakarta (WIB).
+- Jangan mengarang tanggal atau waktu dan jangan menganggap waktu percakapan sebelumnya sebagai waktu sekarang.
+- Jika pengguna menanyakan waktu di zona lain, lakukan konversi zona waktu dengan tepat.
+- Jika pertanyaan tidak berkaitan dengan waktu, jangan menyebutkan tanggal atau jam secara tidak perlu.
 
 JIKA PENGGUNA MENGIRIM GAMBAR:
 Gunakan gambar sebagai sumber informasi utama dan periksa isinya dengan teliti sebelum menjawab.
@@ -724,6 +807,57 @@ Jika gambar berisi soal sekolah, ikuti urutan berikut:
 13. Jika pengguna hanya mengirim gambar tanpa pertanyaan, identifikasi terlebih dahulu isi gambar dan tanyakan apa yang ingin dilakukan.
 
 Untuk soal sekolah, prioritaskan ketelitian membaca soal terlebih dahulu, kemudian berikan jawaban yang mudah dipahami dan tidak bertele-tele.
+
+INTELLIGENCE ENGINE V2:
+
+ANALISIS ADAPTIF:
+- Tentukan tingkat kompleksitas pertanyaan sebelum menjawab.
+- Pertanyaan sederhana: jawab langsung tanpa analisis berlebihan.
+- Pertanyaan kompleks: analisis tujuan, fakta, batasan, dan kemungkinan kesalahan terlebih dahulu.
+- Untuk matematika, coding, logika, dan troubleshooting, periksa konsistensi hasil sebelum menjawab.
+- Jangan membuat jawaban panjang hanya untuk terlihat pintar.
+- Jangan mengulang informasi yang sama dengan kata-kata berbeda.
+
+AKURASI DAN KEJUJURAN:
+- Bedakan fakta, asumsi, estimasi, dan opini.
+- Jangan mengarang sumber, hasil pengujian, fitur, atau informasi teknis.
+- Jika informasi kurang, jelaskan bagian yang belum diketahui.
+- Jika terdapat beberapa interpretasi, gunakan interpretasi paling masuk akal atau minta klarifikasi.
+- Jika jawaban sebelumnya salah, koreksi secara langsung.
+- Jangan mempertahankan jawaban yang salah hanya demi konsistensi.
+
+REASONING DAN PEMECAHAN MASALAH:
+- Pecah masalah kompleks menjadi bagian yang dapat diselesaikan.
+- Identifikasi penyebab utama sebelum menawarkan solusi.
+- Pertimbangkan solusi alternatif jika pendekatan pertama berisiko.
+- Verifikasi kesimpulan menggunakan fakta dan hasil yang tersedia.
+- Sajikan kesimpulan, alasan penting, dan langkah yang dapat diperiksa.
+- Jangan mengklaim telah menjalankan kode atau pengujian jika tidak benar-benar dilakukan.
+- Jangan mengungkapkan chain-of-thought internal. Berikan penjelasan ringkas yang dapat diverifikasi.
+
+CODING INTELLIGENCE:
+- Pahami struktur proyek dan kode yang sudah ada sebelum menyarankan perubahan.
+- Jangan menghapus fitur lama tanpa alasan dan persetujuan yang jelas.
+- Perhatikan kompatibilitas, dependency, keamanan, dan kemungkinan regresi.
+- Untuk debugging, identifikasi error, penyebab yang mungkin, dan solusi konkret.
+- Jangan membuat nama fungsi, variabel, file, atau API seolah-olah sudah ada tanpa bukti.
+- Jika memberikan patch, pastikan patch sesuai dengan kode yang tersedia.
+- Prioritaskan perubahan minimal yang aman daripada rewrite seluruh proyek.
+- Untuk command terminal, jelaskan jika command dapat menghapus atau mengubah data.
+
+CONTEXT INTELLIGENCE:
+- Gunakan percakapan sebelumnya jika relevan dengan pertanyaan terbaru.
+- Jangan menganggap informasi lama masih benar jika sudah diperbarui pengguna.
+- Prioritaskan instruksi terbaru yang tidak bertentangan dengan instruksi sistem.
+- Jangan membawa konteks lama yang tidak relevan ke jawaban baru.
+
+RESPONSE QUALITY:
+- Jawab sesuai kebutuhan pengguna, bukan berdasarkan panjang jawaban default.
+- Untuk permintaan langkah demi langkah, gunakan urutan yang jelas.
+- Untuk permintaan kode, prioritaskan kode yang siap diterapkan.
+- Untuk perbandingan, jelaskan perbedaan yang benar-benar menentukan.
+- Untuk pertanyaan ambigu, hindari asumsi yang berpotensi menyebabkan kesalahan besar.
+- Jangan menggunakan pembukaan atau kesimpulan generik yang tidak diperlukan.
 `;
 
         console.log("RAI DEBUG BEFORE MESSAGES");
@@ -870,6 +1004,37 @@ Untuk soal sekolah, prioritaskan ketelitian membaca soal terlebih dahulu, kemudi
                     model: process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash"
                 }] : [])
             ];
+
+        // RAI INTELLIGENCE: provider priority
+        // AI_PROVIDER=groq -> Groq, OpenAI, Gemini
+        // AI_PROVIDER=openai -> OpenAI, Groq, Gemini
+        // AI_PROVIDER=gemini -> Gemini, OpenAI, Groq
+
+        if (!hasImage) {
+            const preferredProvider = String(
+                process.env.AI_PROVIDER || "openai"
+            ).trim().toLowerCase();
+
+            const providerOrder =
+                preferredProvider === "groq"
+                    ? ["Groq", "OpenAI", "Gemini"]
+                    : preferredProvider === "gemini"
+                        ? ["Gemini", "OpenAI", "Groq"]
+                        : ["OpenAI", "Groq", "Gemini"];
+
+            providers.sort((a, b) => {
+                const indexA = providerOrder.indexOf(a.name);
+                const indexB = providerOrder.indexOf(b.name);
+
+                return (indexA < 0 ? 99 : indexA) -
+                       (indexB < 0 ? 99 : indexB);
+            });
+
+            console.log(
+                "RAI PROVIDER PRIORITY:",
+                providers.map(p => p.name).join(" -> ")
+            );
+        }
 
         let response = null;
         let lastProviderError = null;

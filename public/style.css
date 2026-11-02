@@ -4136,3 +4136,155 @@ html.rai-no-animations *::after {
     }
 }
 
+
+/* RAI CYBER AUDIO */
+.rai-mic-button {
+    border: 1px solid rgba(0, 255, 180, .45);
+    background: rgba(0, 255, 180, .08);
+    color: #00ffc8;
+    border-radius: 10px;
+    min-width: 42px;
+    min-height: 42px;
+    cursor: pointer;
+    transition: .2s ease;
+    text-shadow: 0 0 8px #00ffc8;
+}
+
+.rai-mic-button:hover {
+    background: rgba(0, 255, 180, .2);
+    box-shadow: 0 0 14px rgba(0, 255, 180, .35);
+}
+
+.rai-mic-active {
+    color: #ff3158 !important;
+    border-color: #ff3158 !important;
+    box-shadow: 0 0 15px rgba(255, 49, 88, .5);
+    animation: raiMicPulse 1s infinite;
+}
+
+@keyframes raiMicPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+/* RAI HARDWARE MONITOR ANIMATION */
+#hardwareDevice {
+    display: inline-block;
+    color: #00ffc3;
+    margin-left: 5px;
+    font-size: .72em;
+    letter-spacing: 1px;
+    text-shadow: 0 0 8px rgba(0,255,190,.5);
+}
+
+.system-card .progress i {
+    transition: width .8s cubic-bezier(.22,1,.36,1), filter .3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.system-card .progress i::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent);
+    transform: translateX(-100%);
+    animation: raiHardwareScan 3s linear infinite;
+}
+
+@keyframes raiHardwareScan {
+    to { transform: translateX(100%); }
+}
+
+#networkDot.network-online,
+#networkDot.network-mobile {
+    animation: raiNetworkPulse 1.8s ease-in-out infinite;
+}
+
+#networkDot.network-offline {
+    animation: raiNetworkOffline 1.2s ease-in-out infinite;
+}
+
+@keyframes raiNetworkPulse {
+    0%, 100% { opacity: .55; transform: scale(.85); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes raiNetworkOffline {
+    0%, 100% { opacity: .35; }
+    50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .system-card .progress i,
+    .system-card .progress i::after,
+    #networkDot {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+
+/* RAI ENGINE UPDATER */
+.rai-engine-updater {
+    margin-top: 18px;
+    padding: 14px;
+    border: 1px solid rgba(0, 255, 140, .25);
+    border-radius: 12px;
+    background: linear-gradient(
+        135deg,
+        rgba(0, 35, 22, .92),
+        rgba(0, 10, 18, .95)
+    );
+    box-shadow: 0 0 18px rgba(0, 255, 140, .06);
+}
+
+.rai-engine-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    color: #65ffb4;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+}
+
+.rai-engine-version {
+    color: #00eaff;
+    font-family: monospace;
+}
+
+.rai-engine-status {
+    margin: 10px 0;
+    color: #9bffc9;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.rai-engine-release {
+    color: #b8d9ce;
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.rai-engine-update-button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px solid #00ff9d;
+    border-radius: 8px;
+    color: #00ff9d;
+    background: rgba(0, 255, 130, .08);
+    font-weight: 800;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.rai-engine-update-button:disabled {
+    opacity: .55;
+    cursor: wait;
+}
