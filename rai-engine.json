@@ -1,9 +1,9 @@
 {
-  "version": "2.4.2",
-  "changelog": "RAI Engine 2.4.2 - Email and password authentication, updated account interface, dependency management, notification improvements, and updater support.",
-  "release_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/tag/v2.4.2",
-  "asset_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/download/v2.4.2/rai-engine-2.4.2.zip",
-  "sha256": "d4a7391b6d8fbc479176fc57d8d36ed23b12d5a7f0cb5a02fc3932a491cf896c",
+  "version": "2.4.3",
+  "changelog": "RAI Engine 2.4.3 - Automatic engine installation and server restart, improved update verification, and frontend reconnection handling.",
+  "release_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/tag/v2.4.3",
+  "asset_url": "https://github.com/mbudiarumprasetiyo-hub/rai/releases/download/v2.4.3/rai-engine-2.4.3.zip",
+  "sha256": "256e50c4af472129037100d901f58b1685119d9519eda7d03c9d430fe56b45f1",
   "files": [
     "server.js",
     "auth.js",
