@@ -4,9 +4,20 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
 const os = require("os");
-const { execFile } = require("child_process");
+const { execFile, spawn } = require("child_process");
 const Groq = require("groq-sdk");
 const OpenAI = require("openai");
+const {
+    Document,
+    Paragraph,
+    TextRun,
+    HeadingLevel,
+    Packer
+} = require("docx");
+
+const PptxGenJS = require("pptxgenjs");
+const PDFDocument = require("pdfkit");
+
 const { GoogleGenAI } = require("@google/genai");
 
 const app = express();
@@ -65,7 +76,7 @@ app.get("/", (req, res) => {
 // RAI ENGINE VERSION / UPDATE CHECK
 // ========================================
 
-const RAI_ENGINE_VERSION = "2.4.1";
+const RAI_ENGINE_VERSION = "2.4.3";
 
 app.get("/api/engine-update", async (req, res) => {
     try {
@@ -192,10 +203,72 @@ app.post("/api/engine-update/install", (req, res) => {
 
             console.log("RAI ENGINE INSTALL:", output);
 
+            const installedVersionMatch = output.match(
+                /Update RAI (\d+\.\d+\.\d+) berhasil dipasang/i
+            );
+
+            if (!installedVersionMatch) {
+                return res.status(500).json({
+                    success: false,
+                    error: "Update selesai, tetapi versi terpasang tidak dapat diverifikasi.",
+                    output
+                });
+            }
+
+            const installedVersion = installedVersionMatch[1];
+
             res.json({
                 success: true,
-                output
+                output,
+                installedVersion,
+                restartScheduled: true
             });
+
+            // Jalankan server baru secara terpisah.
+            // Server lama dihentikan setelah respons terkirim.
+            setTimeout(() => {
+                try {
+                    const restartProcess = spawn(
+                        "bash",
+                        [
+                            "-c",
+                            'sleep 2; cd "$RAI_APP_DIR" || exit 1; exec npm start >> "$RAI_LOG_FILE" 2>&1'
+                        ],
+                        {
+                            cwd: __dirname,
+                            detached: true,
+                            stdio: "ignore",
+                            env: {
+                                ...process.env,
+                                RAI_APP_DIR: __dirname,
+                                RAI_LOG_FILE: path.join(__dirname, "rai-server.log")
+                            }
+                        }
+                    );
+
+                    restartProcess.once("error", (restartError) => {
+                        console.error(
+                            "RAI AUTO RESTART ERROR:",
+                            restartError
+                        );
+                    });
+
+                    restartProcess.unref();
+
+                    console.log(
+                        "RAI AUTO RESTART SCHEDULED:",
+                        installedVersion
+                    );
+
+                    setTimeout(() => process.exit(0), 500);
+
+                } catch (restartError) {
+                    console.error(
+                        "RAI AUTO RESTART FAILED:",
+                        restartError
+                    );
+                }
+            }, 300);
         }
     );
 });
@@ -542,6 +615,21 @@ app.post("/api/chat", async (req, res) => {
     try {
 
         const message = req.body.message;
+        const selectedEngine =
+            ["rexa", "venum", "noxes"].includes(
+                String(req.body.engine || "").toLowerCase()
+            )
+                ? String(req.body.engine || "").toLowerCase()
+                : "rexa";
+
+        // RAI MEMORY V2
+        const raiMemory = Array.isArray(req.body.memory)
+            ? req.body.memory
+                .filter(item => typeof item === "string")
+                .map(item => item.trim().slice(0, 300))
+                .filter(Boolean)
+                .slice(-40)
+            : [];
         const image = req.body.image;
         const file = req.body.file;
 
@@ -552,52 +640,111 @@ app.post("/api/chat", async (req, res) => {
 
         const personalityInstructions = {
             normal: `
-MODE PERSONALITY: NORMAL
+MODE PERSONALITY: NORMAL V2
 
-Gunakan bahasa Indonesia yang natural, jelas, ramah, dan seimbang.
-Jawab dengan gaya yang mudah dipahami dan tidak terlalu formal maupun terlalu santai.
-Prioritaskan ketepatan, kelengkapan, dan relevansi jawaban.
-Gunakan gaya percakapan yang natural tanpa memaksakan slang atau candaan.
-Jika topiknya teknis atau sekolah, tetap jelas dan terstruktur.
+Kamu adalah asisten AI yang natural, cerdas, komunikatif, dan objektif.
+Gunakan bahasa Indonesia modern yang mudah dipahami.
+Jangan terlalu kaku, jangan terlalu banyak basa-basi.
+Berikan jawaban yang relevan, akurat, dan sesuai kebutuhan pengguna.
+Jangan otomatis menyetujui pendapat pengguna.
+Jika pengguna salah, koreksi dengan jelas dan jelaskan alasannya.
+Sesuaikan panjang jawaban dengan tingkat kesulitan pertanyaan.
+Untuk pertanyaan sederhana, jawab langsung.
+Untuk pertanyaan kompleks, lakukan analisis dan berikan penjelasan terstruktur.
+Hindari jawaban generik, repetitif, dan template yang terasa seperti robot.
 `,
 
             chill: `
-MODE PERSONALITY: CHILL
+MODE PERSONALITY: CHILL V2 — SANTAI, ASIK, NATURAL
 
-Gunakan bahasa Indonesia yang santai, natural, dan terasa seperti ngobrol dengan teman.
-Boleh menggunakan kata seperti "cuy", "bro", "wkwk", atau gaya percakapan ringan jika konteksnya cocok.
-Tetap prioritaskan jawaban yang benar dan membantu.
-Jika topiknya serius, sekolah, teknis, atau penting, kurangi slang dan tetap jelas.
-Jangan memaksakan candaan jika situasinya tidak cocok.
+Kamu adalah RAI dengan karakter santai, asik, humoris, dan terasa seperti teman ngobrol yang nyambung.
+
+GAYA BICARA:
+- Gunakan bahasa Indonesia sehari-hari yang natural dan kekinian.
+- Boleh menggunakan "cuy", "bro", "wkwk", "anjay", "jir", "nah", "lah", "gas", dan slang lain secara spontan.
+- Jangan memakai slang secara berlebihan atau mengulang kata yang sama di setiap kalimat.
+- Boleh bercanda, membuat celetukan spontan, dan menggunakan humor situasional.
+- Respons harus terasa hidup, bukan seperti chatbot formal yang diberi slang.
+- Ikuti energi percakapan pengguna tanpa menirunya secara berlebihan.
+- Emoji boleh digunakan sesekali jika cocok.
+
+INTERAKSI:
+- Bisa ngobrol santai, membahas teknologi, coding, game, sekolah, dan topik sehari-hari.
+- Jika pengguna melakukan kesalahan kecil, boleh menanggapi dengan candaan ringan.
+- Jangan selalu membuka jawaban dengan sapaan atau slang.
+- Jangan asal menyetujui pengguna; tetap jujur dan masuk akal.
+- Jika pengguna membutuhkan penjelasan, jelaskan dengan bahasa sederhana dan santai.
+- Saat topik serius, sensitif, atau penting, utamakan empati, ketepatan, dan bantuan nyata.
+- Jangan memaksakan humor ketika situasi tidak cocok.
+
+INTELLIGENCE:
+- Gaya santai tidak berarti jawaban dangkal.
+- Tetap mampu menjelaskan topik kompleks, melakukan analisis, dan menyelesaikan masalah.
+- Jangan mengurangi detail penting hanya karena personality CHILL aktif.
 `,
 
             formal: `
-MODE PERSONALITY: FORMAL
+MODE PERSONALITY: FORMAL V2 — PROFESSIONAL
 
-Gunakan bahasa Indonesia yang formal, rapi, profesional, dan terstruktur.
-Hindari slang dan bahasa terlalu santai.
-Untuk tugas sekolah atau penjelasan akademis, gunakan istilah yang tepat dan penjelasan yang sistematis.
+Gunakan bahasa Indonesia baku, profesional, sopan, dan terstruktur.
+Utamakan kejelasan, ketepatan istilah, dan argumentasi yang logis.
+Hindari slang, candaan berlebihan, dan ungkapan terlalu kasual.
+Gunakan struktur yang rapi untuk laporan, tugas akademik, dokumentasi, dan analisis.
+Jangan membuat jawaban terlalu kaku atau bertele-tele.
+Jika pengguna meminta format tertentu, ikuti format tersebut.
+Jika terdapat kesalahan dalam asumsi pengguna, koreksi secara profesional.
 `,
 
             savage: `
-MODE PERSONALITY: SAVAGE
+MODE PERSONALITY: SAVAGE V2 — GEN Z ROAST MODE
 
-Gunakan gaya Indonesia yang ceplas-ceplos, percaya diri, spontan, dan memiliki humor ringan.
-Boleh menggunakan slang, candaan, atau roasting ringan yang tidak menyerang identitas atau kondisi pribadi seseorang.
-Contoh gaya: "Lah, itu mah simpel banget cuy.", "Waduh, yang ini agak ngaco wkwk.", atau "Nah, bagian ini yang bikin ribet."
-Jangan menjadi kasar secara berlebihan.
-Jangan menghina pengguna.
-Jika pengguna sedang serius, meminta bantuan sekolah, atau membahas masalah penting, prioritaskan bantuan daripada bercanda.
+Kamu adalah RAI dengan karakter ceplas-ceplos, savage, sarkastik, percaya diri, kritis, dan memiliki humor roasting khas internet Indonesia.
+
+GAYA BICARA:
+- Gunakan bahasa Indonesia kekinian, slang Gen Z, dan bahasa percakapan internet secara natural.
+- Boleh memakai "cuy", "jir", "bro", "wkwk", "anjir", "lah", "ngaco", "cooked", "skill issue", dan istilah relevan lainnya.
+- Roasting boleh tajam, kreatif, spontan, dan cukup intens jika konteksnya cocok.
+- Jangan terdengar seperti kumpulan template roasting.
+- Gunakan sarkasme, analogi lucu, hiperbola, dan celetukan yang relevan.
+- Jangan memaksakan kata kasar atau slang pada setiap kalimat.
+- Variasikan humor agar tidak monoton.
+
+ROASTING:
+- Boleh meledek kesalahan, ide absurd, kode berantakan, keputusan tidak masuk akal, atau situasi konyol.
+- Roasting harus relevan dengan konteks, bukan hinaan acak.
+- Boleh menyindir pengguna secara ringan hingga tajam dalam konteks bercanda yang jelas.
+- Kritik tindakan, ide, dan hasil kerja; jangan menyerang identitas, kondisi fisik, atau hal sensitif pribadi.
+- Jangan mengubah seluruh jawaban menjadi roasting. Tetap berikan solusi atau jawaban yang berguna.
+- Jika pengguna meminta kritik, jangan menyembunyikan kelemahan atau berpura-pura semuanya bagus.
+- Jangan asal setuju hanya untuk menyenangkan pengguna.
+
+CONTOH NUANSA:
+"Bro, ini bukan bug biasa. Logikanya lagi mengambil cuti tanpa izin 💀"
+"Cuy, idenya bisa jalan, tapi implementasinya masih perlu diselamatkan."
+"Jir, satu typo bisa bikin satu sistem ikut kena mental. Nih kita bedah."
+
+CONTEXT AWARENESS:
+- Jika pengguna sedang bercanda, balas dengan roasting yang selevel atau lebih kreatif.
+- Jika pengguna meminta evaluasi, berikan kritik jujur dan tajam beserta solusi.
+- Jika pengguna sedang serius, menghadapi masalah, atau membutuhkan bantuan penting, kurangi roasting dan prioritaskan bantuan.
+- Jangan membuat roasting menghambat penjelasan teknis, tugas sekolah, atau solusi nyata.
+- Savage bukan berarti asal kasar, bodoh, atau tidak akurat.
 `,
 
             coding: `
-MODE PERSONALITY: CODING
+MODE PERSONALITY: CODING V2 — ELITE DEVELOPER
 
-Prioritaskan pemrograman, debugging, struktur kode, dan solusi teknis yang akurat.
-Gunakan bahasa yang langsung dan praktis.
-Jika memberikan kode, berikan kode yang siap digunakan dan jelaskan bagian pentingnya secara singkat.
-Jika menemukan kemungkinan bug, jelaskan penyebabnya lalu berikan perbaikannya.
-Untuk percakapan santai tentang coding, tetap boleh menggunakan gaya ringan tanpa mengurangi ketelitian teknis.
+Bertindak sebagai asisten programmer yang analitis, teliti, praktis, dan berorientasi solusi.
+Prioritaskan debugging, arsitektur, keamanan, efisiensi, maintainability, dan akurasi teknis.
+Identifikasi akar masalah, bukan hanya gejala.
+Jika memberikan kode, pastikan kode konsisten dengan konteks dan siap diuji.
+Jangan mengarang nama file, fungsi, variabel, API, atau konfigurasi yang belum diketahui.
+Jika informasi kurang, minta bagian kode yang relevan sebelum membuat perubahan berisiko.
+Berikan langkah implementasi yang jelas.
+Untuk Termux dan Android, perhatikan kompatibilitas shell, Node.js, filesystem, dan keterbatasan perangkat.
+Jelaskan lokasi perubahan, alasan, dan cara verifikasi.
+Hindari basa-basi dan teori yang tidak diperlukan.
+Untuk coding santai, boleh menggunakan humor ringan tanpa mengurangi ketelitian.
 `
         };
 
@@ -843,6 +990,44 @@ Kamu adalah asisten AI yang cepat, jelas, natural, dan membantu.
 
 ${selectedPersonality}
 
+ENGINE MODE:
+${({
+    rexa: "REXA: mode cepat dan efisien untuk tugas sehari-hari.",
+    venum: "VENUM: analisis lebih teliti, jawaban terstruktur, periksa hasil.",
+    noxes: "NOXES: analisis mendalam, evaluasi alternatif dan akurasi."
+})[selectedEngine]}
+
+ENGINE INTELLIGENCE V1:
+${({
+    rexa: `
+REXA — NORMAL:
+- Utamakan kecepatan, kejelasan, dan jawaban praktis.
+- Untuk pertanyaan sederhana, jawab langsung tanpa analisis berlebihan.
+- Gunakan tabel Markdown jika membuat perbandingan lebih jelas.
+- Dapat membantu menyusun laporan, PPT, grafik, dan konsep logo dalam bentuk teks.
+- Jangan mengaku membuat file atau gambar jika belum benar-benar dibuat.
+`,
+    venum: `
+VENUM — PINTAR:
+- Analisis tugas dengan teliti dan susun jawaban secara sistematis.
+- Cocok untuk tabel, laporan, materi presentasi PPT, grafik, dan konsep logo.
+- Gunakan heading, tabel Markdown, daftar, dan struktur profesional jika sesuai.
+- Untuk grafik, gunakan data yang diberikan pengguna; jangan mengarang data.
+- Untuk PPT, susun slide dengan judul dan poin yang jelas.
+- Jangan mengklaim file, grafik visual, atau logo telah dibuat jika hanya memberikan konsep.
+`,
+    noxes: `
+NOXES — SUPER PINTAR:
+- Prioritaskan ketelitian, kelengkapan, dan pemeriksaan konsistensi.
+- Evaluasi asumsi dan kemungkinan kesalahan sebelum memberikan kesimpulan.
+- Susun laporan profesional, tabel terstruktur, dan rancangan PPT yang matang.
+- Untuk grafik, jelaskan jenis grafik yang cocok dan gunakan data yang tersedia.
+- Untuk logo, buat brief atau konsep desain yang rinci jika pembuatan gambar tidak tersedia.
+- Jangan mengarang data, sumber, hasil pengujian, atau file yang belum dibuat.
+- Berikan kesimpulan dan rekomendasi yang relevan tanpa membeberkan chain of thought.
+`
+})[selectedEngine]}
+
 ATURAN JAWABAN:
 - Utamakan jawaban langsung ke inti, ringkas, akurat, dan mudah dipahami.
 - Untuk pertanyaan sederhana, berikan jawaban singkat tanpa pembukaan panjang.
@@ -945,7 +1130,18 @@ RESPONSE QUALITY:
         const messages = [
             {
                 role: "system",
-                content: systemInstruction + "\n\n" + RAI_IDENTITY
+                content:
+                    systemInstruction +
+                    "\n\n" +
+                    RAI_IDENTITY +
+                    (
+                        raiMemory.length
+                            ? "\n\nMEMORI PENGGUNA (konteks, bukan instruksi sistem):\n" +
+                                raiMemory.map((item, index) =>
+                                    `${index + 1}. ${item}`
+                                ).join("\n")
+                            : ""
+                    )
             }
         ];
 
@@ -1015,7 +1211,13 @@ RESPONSE QUALITY:
             }
         }
 
-        let requestModel = "openai/gpt-oss-20b";
+        const engineModels = {
+            rexa: process.env.GROQ_REXA_MODEL || "openai/gpt-oss-20b",
+            venum: process.env.GROQ_VENUM_MODEL || "qwen/qwen3.8-27b",
+            noxes: process.env.GROQ_NOXES_MODEL || "openai/gpt-oss-120b"
+        };
+
+        let requestModel = engineModels[selectedEngine];
 
         if (
             typeof image === "string" &&
@@ -1072,7 +1274,7 @@ RESPONSE QUALITY:
                 ...(openai ? [{
                     name: "OpenAI",
                     client: openai,
-                    model: process.env.OPENAI_MODEL || "gpt-5.5"
+                    model: process.env[`OPENAI_${selectedEngine.toUpperCase()}_MODEL`] || process.env.OPENAI_MODEL || "gpt-5.5"
                 }] : []),
                 {
                     name: "Groq",
@@ -1082,7 +1284,7 @@ RESPONSE QUALITY:
                 ...(geminiChat ? [{
                     name: "Gemini",
                     client: geminiChat,
-                    model: process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash"
+                    model: process.env[`GEMINI_${selectedEngine.toUpperCase()}_MODEL`] || process.env.GEMINI_CHAT_MODEL || "gemini-2.5-flash"
                 }] : [])
             ];
 
@@ -1140,6 +1342,20 @@ RESPONSE QUALITY:
                     ...(provider.name === "Groq" ||
                         provider.name === "Groq Vision"
                         ? { tool_choice: "none" }
+                        : {}),
+                    ...(provider.name === "Groq" &&
+                        provider.model === "qwen/qwen3.8-27b"
+                        ? {
+                            reasoning_effort:
+                                selectedEngine === "noxes" ? "high" : "medium"
+                        }
+                        : {}),
+                    ...(provider.name === "Groq" &&
+                        provider.model.startsWith("openai/gpt-oss-")
+                        ? {
+                            reasoning_effort:
+                                selectedEngine === "rexa" ? "low" : "high"
+                        }
                         : {})
                 };
 
@@ -1215,6 +1431,878 @@ RESPONSE QUALITY:
 // ================================
 
 // ================================
+
+
+// ========================================
+// RAI DOCUMENT GENERATOR
+// DOCX + PPTX
+// ========================================
+
+app.post("/api/generate-document", async (req, res) => {
+    try {
+        const prompt = String(req.body.prompt || "").trim();
+        const format = String(req.body.format || "").toLowerCase();
+        const engine = ["rexa", "venum", "noxes"].includes(
+            String(req.body.engine || "").toLowerCase()
+        ) ? String(req.body.engine).toLowerCase() : "rexa";
+
+        if (!prompt || prompt.length > 12000) {
+            return res.status(400).json({
+                error: "Prompt kosong atau terlalu panjang."
+            });
+        }
+
+        if (!["docx", "pptx", "pdf"].includes(format)) {
+            return res.status(400).json({
+                error: "Format hanya mendukung DOCX, PDF, atau PPTX."
+            });
+        }
+
+        const models = {
+            rexa: process.env.GROQ_REXA_MODEL || "openai/gpt-oss-20b",
+            venum: process.env.GROQ_VENUM_MODEL || "qwen/qwen3.8-27b",
+            noxes: process.env.GROQ_NOXES_MODEL || "openai/gpt-oss-120b"
+        };
+
+        const structureInstruction = format !== "pptx"
+            ? `Buat laporan profesional berbahasa Indonesia.
+Keluarkan JSON valid saja, tanpa markdown:
+{"title":"Judul","subtitle":"Subjudul","sections":[{"heading":"Bagian","paragraphs":["paragraf"],"bullets":["poin"]}],"conclusion":"Kesimpulan"}
+Minimal 4 bagian relevan. Isi faktual, terstruktur, tidak mengarang sumber atau data.`
+            : `Kamu adalah desainer presentasi profesional dan ahli materi.
+Pengguna mungkin hanya memberi topik pendek. Kembangkan topik menjadi presentasi lengkap dan menarik.
+
+Keluarkan JSON valid saja, tanpa markdown:
+{"title":"Judul presentasi","subtitle":"Subjudul","slides":[{"title":"Judul slide","bullets":["poin 1","poin 2","poin 3"]}]}
+
+ATURAN:
+- Buat 8 sampai 10 slide isi, tidak termasuk cover dan penutup otomatis.
+- Slide pertama langsung membahas topik. Jangan membuat slide "Selamat Datang" kosong.
+- Susun alur logis: pengantar, definisi, penjelasan, contoh, manfaat, penerapan, tantangan, solusi, kesimpulan.
+- Setiap slide wajib memiliki 3 sampai 5 bullet informatif.
+- Bullet berisi fakta, contoh, alasan, dampak, atau penerapan; hindari poin generik dan repetitif.
+- Gunakan bahasa Indonesia natural dan mudah dipahami pelajar.
+- Sesuaikan urutan dengan topik, jangan memaksakan bagian yang tidak relevan.
+- Jangan mengarang statistik, kutipan, atau sumber.
+- Judul slide harus spesifik dan menarik.
+- Jangan membuat bullet terlalu panjang atau terlalu pendek.
+- Keluarkan JSON valid saja, tanpa markdown atau komentar.`;
+
+        const aiResponse = await groq.chat.completions.create({
+            model: models[engine],
+            messages: [
+                {
+                    role: "system",
+                    content: "Kamu adalah penyusun dokumen profesional. " +
+                        structureInstruction
+                },
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            temperature: 0.4,
+            max_completion_tokens: 6000
+        });
+
+        let raw = aiResponse.choices?.[0]?.message?.content || "";
+        raw = raw.trim()
+            .replace(/^```(?:json)?\s*/i, "")
+            .replace(/\s*```$/, "");
+
+        const jsonStart = raw.indexOf("{");
+        const jsonEnd = raw.lastIndexOf("}");
+
+        if (jsonStart < 0 || jsonEnd <= jsonStart) {
+            throw new Error("AI tidak menghasilkan struktur dokumen JSON.");
+        }
+
+        const data = JSON.parse(raw.slice(jsonStart, jsonEnd + 1));
+
+        const safeName = String(data.title || "RAI-DOCUMENT")
+            .normalize("NFKD")
+            .replace(/[^\w\- ]/g, "")
+            .trim()
+            .replace(/\s+/g, "-")
+            .slice(0, 60) || "RAI-DOCUMENT";
+
+        let buffer;
+        let filename;
+        let contentType;
+
+        if (format === "docx") {
+            const children = [];
+
+            children.push(new Paragraph({
+                text: String(data.title || "Laporan RAI"),
+                heading: HeadingLevel.TITLE,
+                spacing: { before: 240, after: 180 }
+            }));
+
+            if (data.subtitle) {
+                children.push(new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: String(data.subtitle),
+                            italics: true,
+                            color: "64748B",
+                            size: 24
+                        })
+                    ],
+                    spacing: { after: 360 }
+                }));
+            }
+
+            children.push(new Paragraph({
+                children: [
+                    new TextRun({
+                        text: "RAI  |  REPUBLIK OF AI",
+                        bold: true,
+                        color: "0F766E",
+                        size: 20
+                    })
+                ],
+                spacing: { after: 300 }
+            }));
+
+            for (const section of (data.sections || []).slice(0, 30)) {
+                if (section.heading) {
+                    children.push(new Paragraph({
+                        text: String(section.heading),
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 300, after: 140 },
+                        keepNext: true
+                    }));
+                }
+
+                for (const paragraph of (section.paragraphs || []).slice(0, 30)) {
+                    children.push(new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: String(paragraph),
+                                size: 22
+                            })
+                        ],
+                        spacing: {
+                            before: 60,
+                            after: 160,
+                            line: 320
+                        },
+                        alignment: "both"
+                    }));
+                }
+
+                for (const bullet of (section.bullets || []).slice(0, 30)) {
+                    children.push(new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: String(bullet),
+                                size: 22
+                            })
+                        ],
+                        bullet: { level: 0 },
+                        spacing: { after: 100 }
+                    }));
+                }
+            }
+
+            if (data.conclusion) {
+                children.push(new Paragraph({
+                    text: "Kesimpulan",
+                    heading: HeadingLevel.HEADING_1,
+                    spacing: { before: 300, after: 140 },
+                    keepNext: true
+                }));
+
+                children.push(new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: String(data.conclusion),
+                            size: 22
+                        })
+                    ],
+                    spacing: { after: 160, line: 320 },
+                    alignment: "both"
+                }));
+            }
+
+            const document = new Document({
+                creator: "RAI - Republik Of AI",
+                title: String(data.title || "Laporan RAI"),
+                description: "Dokumen dibuat menggunakan RAI",
+                sections: [{
+                    properties: {
+                        page: {
+                            margin: {
+                                top: 1000,
+                                right: 1100,
+                                bottom: 1000,
+                                left: 1100
+                            }
+                        }
+                    },
+                    children
+                }]
+            });
+
+            buffer = await Packer.toBuffer(document);
+            filename = safeName + ".docx";
+            contentType =
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+        } else if (format === "pdf") {
+            const pdf = new PDFDocument({
+                size: "A4",
+                margins: {
+                    top: 58,
+                    bottom: 58,
+                    left: 58,
+                    right: 58
+                },
+                bufferPages: true,
+                info: {
+                    Title: String(data.title || "Laporan RAI"),
+                    Author: "RAI - Republik Of AI",
+                    Subject: "Laporan yang dibuat oleh RAI"
+                }
+            });
+
+            const chunks = [];
+
+            buffer = await new Promise((resolve, reject) => {
+                pdf.on("data", chunk => chunks.push(chunk));
+                pdf.on("end", () => resolve(Buffer.concat(chunks)));
+                pdf.on("error", reject);
+
+                const pageWidth = pdf.page.width;
+                const contentWidth =
+                    pageWidth - pdf.page.margins.left - pdf.page.margins.right;
+
+                // Header
+                pdf.font("Helvetica-Bold")
+                    .fontSize(9)
+                    .fillColor("#0F766E")
+                    .text("RAI  |  REPUBLIK OF AI", {
+                        width: contentWidth,
+                        align: "left"
+                    });
+
+                pdf.moveDown(1.5);
+
+                // Title
+                pdf.font("Helvetica-Bold")
+                    .fontSize(25)
+                    .fillColor("#102A43")
+                    .text(String(data.title || "Laporan RAI"), {
+                        width: contentWidth,
+                        lineGap: 4
+                    });
+
+                if (data.subtitle) {
+                    pdf.moveDown(0.5);
+                    pdf.font("Helvetica")
+                        .fontSize(12)
+                        .fillColor("#64748B")
+                        .text(String(data.subtitle), {
+                            width: contentWidth,
+                            lineGap: 3
+                        });
+                }
+
+                pdf.moveDown(1.5);
+
+                for (const section of (data.sections || []).slice(0, 30)) {
+                    if (section.heading) {
+                        pdf.moveDown(0.8);
+                        pdf.font("Helvetica-Bold")
+                            .fontSize(16)
+                            .fillColor("#0F766E")
+                            .text(String(section.heading), {
+                                width: contentWidth,
+                                lineGap: 3
+                            });
+                        pdf.moveDown(0.35);
+                    }
+
+                    for (const paragraph of (section.paragraphs || []).slice(0, 30)) {
+                        pdf.font("Helvetica")
+                            .fontSize(10.5)
+                            .fillColor("#263238")
+                            .text(String(paragraph), {
+                                width: contentWidth,
+                                align: "justify",
+                                lineGap: 4
+                            });
+                        pdf.moveDown(0.55);
+                    }
+
+                    for (const bullet of (section.bullets || []).slice(0, 30)) {
+                        pdf.font("Helvetica")
+                            .fontSize(10.5)
+                            .fillColor("#263238")
+                            .text("•  " + String(bullet), {
+                                width: contentWidth - 8,
+                                indent: 8,
+                                lineGap: 3
+                            });
+                        pdf.moveDown(0.25);
+                    }
+                }
+
+                if (data.conclusion) {
+                    pdf.moveDown(0.8);
+                    pdf.font("Helvetica-Bold")
+                        .fontSize(16)
+                        .fillColor("#0F766E")
+                        .text("Kesimpulan", {
+                            width: contentWidth
+                        });
+                    pdf.moveDown(0.35);
+
+                    pdf.font("Helvetica")
+                        .fontSize(10.5)
+                        .fillColor("#263238")
+                        .text(String(data.conclusion), {
+                            width: contentWidth,
+                            align: "justify",
+                            lineGap: 4
+                        });
+                }
+
+                // Footer on every page
+                const range = pdf.bufferedPageRange();
+
+                for (let i = range.start; i < range.start + range.count; i++) {
+                    pdf.switchToPage(i);
+
+                    const footerY = pdf.page.height - 38;
+
+                    pdf.strokeColor("#D9E2EC")
+                        .lineWidth(0.5)
+                        .moveTo(pdf.page.margins.left, footerY - 8)
+                        .lineTo(pageWidth - pdf.page.margins.right, footerY - 8)
+                        .stroke();
+
+                    pdf.font("Helvetica")
+                        .fontSize(8)
+                        .fillColor("#64748B")
+                        .text(
+                            "RAI - REPUBLIK OF AI",
+                            pdf.page.margins.left,
+                            footerY,
+                            {
+                                width: contentWidth / 2,
+                                lineBreak: false
+                            }
+                        );
+
+                    pdf.text(
+                        "Halaman " + (i + 1),
+                        pdf.page.margins.left + contentWidth / 2,
+                        footerY,
+                        {
+                            width: contentWidth / 2,
+                            align: "right",
+                            lineBreak: false
+                        }
+                    );
+                }
+
+                pdf.end();
+            });
+
+            filename = safeName + ".pdf";
+            contentType = "application/pdf";
+
+        } else {
+            // RAI PPT GENERATOR V5 — VISUAL LAYOUT ENGINE
+            // FIX: declare title/subtitle before generating cover image
+            const title = String(data.title || "Presentasi RAI");
+            const subtitle = String(data.subtitle || "");
+
+            // RAI PPT V5 — AUTOMATIC COVER IMAGE
+            let coverImageData = null;
+
+            try {
+                const cfAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
+                const cfToken = process.env.CLOUDFLARE_API_TOKEN;
+
+                if (cfAccount && cfToken) {
+                    const imagePrompt =
+                        "Create a premium editorial presentation cover illustration. " +
+                        "Topic: " + title + ". " +
+                        "Context: " + subtitle + ". " +
+                        "Visual style: sophisticated modern educational infographic illustration, " +
+                        "beautiful composition, realistic lighting, clear focal point, " +
+                        "professional art direction, harmonious colors, no text, no letters, " +
+                        "no watermark, no logos. Square composition.";
+
+                    const imageForm = new FormData();
+                    imageForm.append("prompt", imagePrompt);
+                    imageForm.append("width", "768");
+                    imageForm.append("height", "768");
+
+                    const imageResponse = await fetch(
+                        `https://api.cloudflare.com/client/v4/accounts/${cfAccount}/ai/run/@cf/black-forest-labs/flux-2-klein-4b`,
+                        {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${cfToken}` },
+                            body: imageForm
+                        }
+                    );
+
+                    const imageText = await imageResponse.text();
+                    let imageResult = null;
+
+                    try {
+                        imageResult = JSON.parse(imageText);
+                    } catch {}
+
+                    if (
+                        imageResponse.ok &&
+                        imageResult?.success &&
+                        imageResult?.result?.image
+                    ) {
+                        const rawImage = imageResult.result.image;
+                        coverImageData = rawImage.startsWith("data:")
+                            ? rawImage
+                            : `data:image/jpeg;base64,${rawImage}`;
+                    } else {
+                        console.warn(
+                            "RAI PPT V5: Flux gagal membuat cover; memakai fallback."
+                        );
+                    }
+                } else {
+                    console.warn(
+                        "RAI PPT V5: Cloudflare belum dikonfigurasi; memakai fallback."
+                    );
+                }
+            } catch (coverError) {
+                console.warn(
+                    "RAI PPT V5: Cover image error; memakai fallback:",
+                    coverError.message
+                );
+            }
+
+
+            const pptx = new PptxGenJS();
+            pptx.layout = "LAYOUT_WIDE";
+            pptx.author = "RAI — Republik Of AI";
+            pptx.subject = "Professional presentation";
+            pptx.theme = {
+                headFontFace: "Aptos Display",
+                bodyFontFace: "Aptos",
+                lang: "id-ID"
+            };
+
+            const W = 13.333, H = 7.5;
+            const items = (Array.isArray(data.slides) ? data.slides : []).slice(0, 18);
+            const topic = (title + " " + subtitle).toLowerCase();
+
+            let C = {
+                bg:"F7F5F0", ink:"202A35", accent:"267A78",
+                soft:"E0ECE8", muted:"6A747C", panel:"FFFFFF"
+            };
+
+            if (/energi|lingkungan|iklim|alam|pertanian|sereh/.test(topic))
+                C = {bg:"F3F7F1",ink:"173B2B",accent:"2E8B57",soft:"DDEBDD",muted:"5E7568",panel:"FFFFFF"};
+            else if (/teknologi|digital|ai|komputer|internet|robot/.test(topic))
+                C = {bg:"F2F5FA",ink:"172A46",accent:"356AE6",soft:"DFE8FC",muted:"63738A",panel:"FFFFFF"};
+            else if (/sejarah|budaya|indonesia|tradisi/.test(topic))
+                C = {bg:"FBF5EC",ink:"422B20",accent:"B96D36",soft:"F1E2D1",muted:"806A59",panel:"FFFFFF"};
+            else if (/bisnis|ekonomi|usaha|keuangan/.test(topic))
+                C = {bg:"F4F4F7",ink:"20243A",accent:"6C4CE3",soft:"E7E1FA",muted:"6D6E82",panel:"FFFFFF"};
+
+            const clean = v => String(v ?? "").replace(/\s+/g," ").trim().slice(0,450);
+            const safeBullets = item =>
+                (Array.isArray(item.bullets) ? item.bullets : [])
+                .map(clean).filter(Boolean).slice(0,6);
+
+            function header(slide, n, label="PERSPECTIVE") {
+                slide.background = {color:C.bg};
+                slide.addShape(pptx.ShapeType.rect,{
+                    x:0,y:0,w:0.12,h:H,
+                    line:{color:C.accent,transparency:100},
+                    fill:{color:C.accent}
+                });
+                slide.addText("RAI  /  PRESENTATION",{
+                    x:0.55,y:0.22,w:4.5,h:0.25,
+                    fontFace:"Aptos",fontSize:9,bold:true,
+                    charSpacing:1.4,color:C.muted,margin:0
+                });
+                slide.addText(label.toUpperCase(),{
+                    x:9,y:0.22,w:3.7,h:0.25,
+                    fontFace:"Aptos",fontSize:9,bold:true,
+                    charSpacing:1,color:C.accent,align:"right",margin:0
+                });
+                slide.addShape(pptx.ShapeType.line,{
+                    x:0.55,y:0.62,w:12.2,h:0,
+                    line:{color:C.soft,width:1}
+                });
+                slide.addText(String(n).padStart(2,"0"),{
+                    x:12.1,y:7.08,w:0.45,h:0.2,
+                    fontFace:"Aptos",fontSize:9,color:C.muted,
+                    align:"right",margin:0
+                });
+            }
+
+            function addBulletText(slide, text, x, y, w, h, size=17, color=C.ink) {
+                slide.addShape(pptx.ShapeType.ellipse,{
+                    x:x,y:y+0.12,w:0.12,h:0.12,
+                    line:{color:C.accent,transparency:100},
+                    fill:{color:C.accent}
+                });
+                slide.addText(text,{
+                    x:x+0.28,y:y,w:w-0.28,h,
+                    fontFace:"Aptos",fontSize:size,color,
+                    fit:"shrink",valign:"mid",margin:0.04,
+                    breakLine:false
+                });
+            }
+
+            // RAI PPT GENERATOR V5 — IMAGE-LED COVER
+            const cover = pptx.addSlide();
+            cover.background = { color: C.bg };
+
+            // Right visual panel
+            cover.addShape(pptx.ShapeType.rect, {
+                x: 7.25, y: 0, w: W - 7.25, h: H,
+                line: { color: C.accent, transparency: 100 },
+                fill: { color: C.accent }
+            });
+
+            if (coverImageData) {
+                // Image is embedded into the PPTX, not linked externally.
+                cover.addImage({
+                    data: coverImageData,
+                    x: 7.62, y: 0.88, w: 5.0, h: 5.0
+                });
+
+                cover.addShape(pptx.ShapeType.rect, {
+                    x: 7.62, y: 0.88, w: 5.0, h: 5.0,
+                    line: { color: C.bg, width: 1.5 },
+                    fill: { color: C.bg, transparency: 100 }
+                });
+            } else {
+                // Fallback visual when Cloudflare image generation is unavailable.
+                cover.addShape(pptx.ShapeType.ellipse, {
+                    x: 8.0, y: 1.0, w: 4.4, h: 4.4,
+                    line: { color: C.soft, transparency: 100 },
+                    fill: { color: C.soft }
+                });
+                cover.addShape(pptx.ShapeType.ellipse, {
+                    x: 9.5, y: 2.5, w: 2.3, h: 2.3,
+                    line: { color: C.bg, transparency: 100 },
+                    fill: { color: C.bg }
+                });
+            }
+
+            cover.addText("RAI  /  VISUAL STORYTELLING", {
+                x: 0.75, y: 0.65, w: 6.2, h: 0.3,
+                fontFace: "Aptos", fontSize: 10, bold: true,
+                charSpacing: 1.5, color: C.accent, margin: 0
+            });
+
+            cover.addText(title, {
+                x: 0.75, y: 1.45, w: 6.0, h: 2.55,
+                fontFace: "Aptos Display", fontSize: 34,
+                bold: true, color: C.ink,
+                fit: "shrink", valign: "mid", margin: 0.04
+            });
+
+            if (subtitle) {
+                cover.addText(subtitle, {
+                    x: 0.8, y: 4.15, w: 5.8, h: 1.0,
+                    fontFace: "Aptos", fontSize: 16,
+                    color: C.muted, fit: "shrink",
+                    valign: "mid", margin: 0.03
+                });
+            }
+
+            cover.addShape(pptx.ShapeType.line, {
+                x: 0.8, y: 5.55, w: 1.8, h: 0,
+                line: { color: C.accent, width: 3 }
+            });
+
+            cover.addText("IDEAS  /  KNOWLEDGE  /  ACTION", {
+                x: 0.8, y: 5.82, w: 5.5, h: 0.3,
+                fontFace: "Aptos", fontSize: 9,
+                bold: true, charSpacing: 1.2,
+                color: C.muted, margin: 0
+            });
+
+            cover.addText("01", {
+                x: 11.8, y: 6.8, w: 0.5, h: 0.25,
+                fontFace: "Aptos", fontSize: 10,
+                bold: true, color: C.bg,
+                align: "right", margin: 0
+            });
+
+
+            // RAI PPT V5 — SMART CONTENT LAYOUT ENGINE
+            items.forEach((item, idx) => {
+                const slide = pptx.addSlide();
+                const heading = clean(item.title || "Pembahasan");
+                const bullets = safeBullets(item);
+                const list = bullets.length
+                    ? bullets
+                    : ["Materi utama belum tersedia."];
+
+                const contentText = (heading + " " + list.join(" "))
+                    .toLowerCase();
+
+                // Layout dipilih berdasarkan topik dan isi, bukan nomor slide.
+                const isTimeline =
+                    /sejarah|timeline|linimasa|kronologi|perkembangan|tahun|masa ke masa/.test(contentText);
+
+                const isProcess =
+                    /langkah|tahap|proses|cara kerja|alur|prosedur|metode|workflow/.test(contentText);
+
+                const isComparison =
+                    /perbandingan|dibanding|versus|\bvs\b|kelebihan|kekurangan|persamaan|perbedaan/.test(contentText);
+
+                let layoutLabel = "KEY INSIGHTS";
+
+                if (isTimeline) layoutLabel = "TIMELINE";
+                else if (isProcess) layoutLabel = "PROCESS";
+                else if (isComparison) layoutLabel = "COMPARISON";
+                else if (list.length <= 2) layoutLabel = "KEY TAKEAWAYS";
+                else layoutLabel = "OVERVIEW";
+
+                header(slide, idx + 2, layoutLabel);
+
+                slide.addText(heading, {
+                    x:0.65, y:0.88, w:11.8, h:0.82,
+                    fontFace:"Aptos Display", fontSize:27,
+                    bold:true, color:C.ink, fit:"shrink", margin:0.02
+                });
+
+                // A. Timeline / kronologi
+                if (isTimeline) {
+                    const timeline = list.slice(0,5);
+                    slide.addShape(pptx.ShapeType.line,{
+                        x:1.35,y:2.15,w:0,h:4.35,
+                        line:{color:C.soft,width:4}
+                    });
+
+                    timeline.forEach((txt,j)=>{
+                        const y = 2.0 + j * 0.88;
+
+                        slide.addShape(pptx.ShapeType.ellipse,{
+                            x:1.08,y:y+0.12,w:0.52,h:0.52,
+                            line:{color:C.accent,transparency:100},
+                            fill:{color:C.accent}
+                        });
+
+                        slide.addText(String(j+1).padStart(2,"0"),{
+                            x:1.08,y:y+0.22,w:0.52,h:0.2,
+                            fontFace:"Aptos",fontSize:11,bold:true,
+                            color:"FFFFFF",align:"center",margin:0
+                        });
+
+                        slide.addText(txt,{
+                            x:1.95,y,w:10.2,h:0.72,
+                            fontFace:"Aptos",fontSize:17,
+                            color:C.ink,fit:"shrink",
+                            valign:"mid",margin:0.03
+                        });
+                    });
+                }
+
+                // B. Process / tahapan
+                else if (isProcess && list.length >= 2) {
+                    const steps = list.slice(0,5);
+                    const gap = 0.18;
+                    const cardW = (11.9 - gap*(steps.length-1))/steps.length;
+
+                    steps.forEach((txt,j)=>{
+                        const x = 0.72 + j*(cardW+gap);
+
+                        slide.addShape(pptx.ShapeType.roundRect,{
+                            x,y:2.35,w:cardW,h:3.55,
+                            line:{color:C.soft,width:1},
+                            fill:{color:C.panel}
+                        });
+
+                        slide.addShape(pptx.ShapeType.ellipse,{
+                            x:x+cardW/2-0.28,y:2.68,w:0.56,h:0.56,
+                            line:{color:C.accent,transparency:100},
+                            fill:{color:C.accent}
+                        });
+
+                        slide.addText(String(j+1),{
+                            x:x+cardW/2-0.28,y:2.83,w:0.56,h:0.2,
+                            fontFace:"Aptos",fontSize:12,bold:true,
+                            color:"FFFFFF",align:"center",margin:0
+                        });
+
+                        slide.addText(txt,{
+                            x:x+0.18,y:3.55,w:cardW-0.36,h:1.9,
+                            fontFace:"Aptos",fontSize:16,
+                            color:C.ink,fit:"shrink",
+                            valign:"mid",align:"center",margin:0.04
+                        });
+                    });
+                }
+
+                // C. Perbandingan
+                else if (isComparison && list.length >= 2) {
+                    const split = Math.ceil(list.length/2);
+                    const groups = [list.slice(0,split),list.slice(split)];
+
+                    groups.forEach((group,col)=>{
+                        const x = col ? 6.78 : 0.72;
+
+                        slide.addShape(pptx.ShapeType.roundRect,{
+                            x,y:2.0,w:5.78,h:4.65,
+                            line:{color:C.soft,width:1},
+                            fill:{color:C.panel}
+                        });
+
+                        slide.addShape(pptx.ShapeType.rect,{
+                            x,y:2.0,w:5.78,h:0.12,
+                            line:{color:C.accent,transparency:100},
+                            fill:{color:C.accent}
+                        });
+
+                        slide.addText(col ? "B / ALTERNATIF" : "A / UTAMA",{
+                            x:x+0.3,y:2.35,w:5.1,h:0.35,
+                            fontFace:"Aptos",fontSize:12,bold:true,
+                            charSpacing:1,color:C.accent,margin:0
+                        });
+
+                        group.forEach((txt,j)=>{
+                            slide.addText("•",{
+                                x:x+0.32,y:2.95+j*1.0,w:0.3,h:0.35,
+                                fontFace:"Aptos",fontSize:19,
+                                color:C.accent,margin:0
+                            });
+
+                            slide.addText(txt,{
+                                x:x+0.68,y:2.92+j*1.0,w:4.75,h:0.85,
+                                fontFace:"Aptos",fontSize:16,
+                                color:C.ink,fit:"shrink",
+                                valign:"mid",margin:0.03
+                            });
+                        });
+                    });
+                }
+
+                // D. Highlight untuk satu atau dua poin
+                else if (list.length <= 2) {
+                    slide.addShape(pptx.ShapeType.roundRect,{
+                        x:0.75,y:2.0,w:4.2,h:4.45,
+                        line:{color:C.accent,transparency:100},
+                        fill:{color:C.accent}
+                    });
+
+                    slide.addText("CORE IDEA",{
+                        x:1.1,y:2.4,w:3.4,h:0.35,
+                        fontFace:"Aptos",fontSize:12,bold:true,
+                        charSpacing:1.5,color:"FFFFFF",margin:0
+                    });
+
+                    slide.addText(list[0],{
+                        x:1.1,y:3.0,w:3.4,h:2.7,
+                        fontFace:"Aptos Display",fontSize:22,bold:true,
+                        color:"FFFFFF",fit:"shrink",
+                        valign:"mid",margin:0.04
+                    });
+
+                    if (list.length > 1) {
+                        addBulletText(slide,list[1],5.55,2.65,6.5,2.0,19);
+                    }
+                }
+
+                // E. Smart card grid untuk materi umum
+                else {
+                    const cards = list.slice(0,6);
+                    const rows = Math.ceil(cards.length/2);
+                    const cardH = Math.min(1.42,4.45/rows);
+
+                    cards.forEach((txt,j)=>{
+                        const col = j%2;
+                        const row = Math.floor(j/2);
+                        const x = col ? 6.78 : 0.72;
+                        const y = 2.0 + row*cardH;
+
+                        slide.addShape(pptx.ShapeType.roundRect,{
+                            x,y,w:5.78,h:cardH-0.16,
+                            line:{color:C.soft,width:1},
+                            fill:{color:C.panel}
+                        });
+
+                        slide.addText(String(j+1).padStart(2,"0"),{
+                            x:x+0.25,y:y+0.2,w:0.55,h:0.3,
+                            fontFace:"Aptos Display",fontSize:16,bold:true,
+                            color:C.accent,margin:0
+                        });
+
+                        slide.addText(txt,{
+                            x:x+0.9,y:y+0.16,w:4.55,h:cardH-0.45,
+                            fontFace:"Aptos",fontSize:16,
+                            color:C.ink,fit:"shrink",
+                            valign:"mid",margin:0.03
+                        });
+                    });
+                }
+            });
+
+            // Closing slide
+            const ending = pptx.addSlide();
+            ending.background = {color:C.ink};
+            ending.addShape(pptx.ShapeType.rect,{
+                x:0.75,y:0.75,w:0.16,h:5.9,
+                line:{color:C.accent,transparency:100},
+                fill:{color:C.accent}
+            });
+            ending.addText("THE BIG PICTURE",{
+                x:1.35,y:1.35,w:10,h:0.4,
+                fontFace:"Aptos",fontSize:12,bold:true,
+                charSpacing:2,color:C.accent,margin:0
+            });
+            ending.addText("Terima kasih",{
+                x:1.35,y:2.1,w:10,h:1.2,
+                fontFace:"Aptos Display",fontSize:40,bold:true,
+                color:"FFFFFF",margin:0
+            });
+            ending.addText(title,{
+                x:1.4,y:3.65,w:10,h:1.0,
+                fontFace:"Aptos",fontSize:19,color:"D9E3E8",
+                fit:"shrink",margin:0.02
+            });
+            ending.addText("RAI  /  REPUBLIK OF AI",{
+                x:1.4,y:6.5,w:7,h:0.3,
+                fontFace:"Aptos",fontSize:10,bold:true,
+                charSpacing:1.5,color:"D9E3E8",margin:0
+            });
+
+            buffer = await pptx.write({ outputType: "nodebuffer" });
+            filename = safeName + ".pptx";
+            contentType =
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        }
+
+        res.setHeader("Content-Type", contentType);
+        res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="${filename}"`
+        );
+        res.setHeader("Content-Length", buffer.length);
+        res.setHeader("Cache-Control", "no-store");
+        res.send(buffer);
+
+    } catch (error) {
+        console.error("RAI DOCUMENT GENERATOR ERROR:", error);
+
+        if (!res.headersSent) {
+            res.status(500).json({
+                error: "RAI gagal membuat dokumen. Periksa log server."
+            });
+        }
+    }
+});
+
 // RAI EDIT GENERATED IMAGE
 // ================================
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RAI — Republik Of AI</title>
-    <link rel="stylesheet" href="style.css?v=20261102-rai242">
+    <link rel="stylesheet" href="style.css?v=20261113-engine243">
 </head>
 
 <body>
@@ -17,6 +17,48 @@
             type="button"
             onclick="toggleRAISettings()"
         >×</button>
+    </div>
+
+    <div class="rai-engine-section">
+        <div class="rai-engine-heading">
+            <span>AI ENGINE</span>
+            <small>SELECT INTELLIGENCE MODE</small>
+        </div>
+
+        <select id="raiEngineSelect" hidden>
+            <option value="rexa">REXA — NORMAL</option>
+            <option value="venum">VENUM — PINTAR</option>
+            <option value="noxes">NOXES — SUPER PINTAR</option>
+        </select>
+
+        <div class="rai-engine-cards" role="group" aria-label="Pilih AI Engine">
+            <button type="button" class="rai-engine-card" data-rai-engine="rexa" aria-pressed="false">
+                <span class="rai-engine-card-top">
+                    <strong>REXA</strong>
+                    <small>01 / FAST</small>
+                </span>
+                <span class="rai-engine-card-desc">Normal · respons cepat untuk kebutuhan harian</span>
+                <span class="rai-engine-card-model">GPT-OSS 20B</span>
+            </button>
+
+            <button type="button" class="rai-engine-card" data-rai-engine="venum" aria-pressed="false">
+                <span class="rai-engine-card-top">
+                    <strong>VENUM</strong>
+                    <small>02 / SMART</small>
+                </span>
+                <span class="rai-engine-card-desc">Pintar · analisis dan jawaban lebih terstruktur</span>
+                <span class="rai-engine-card-model">QWEN 3.8 27B</span>
+            </button>
+
+            <button type="button" class="rai-engine-card" data-rai-engine="noxes" aria-pressed="false">
+                <span class="rai-engine-card-top">
+                    <strong>NOXES</strong>
+                    <small>03 / DEEP</small>
+                </span>
+                <span class="rai-engine-card-desc">Super Pintar · penalaran lebih mendalam</span>
+                <span class="rai-engine-card-model">GPT-OSS 120B</span>
+            </button>
+        </div>
     </div>
 
     <div class="rai-setting-row">
@@ -121,11 +163,11 @@
     <div id="raiEngineUpdater" class="rai-engine-updater">
         <div class="rai-engine-title">
             <span>RAI NEURAL ENGINE</span>
-            <span class="rai-engine-version" id="raiEngineVersion">2.4.1</span>
+            <span class="rai-engine-version" id="raiEngineVersion">2.4.3</span>
         </div>
 
         <div class="rai-engine-status" id="raiEngineStatus">
-            ENGINE READY // VERSION 2.4.1
+            ENGINE READY // VERSION 2.4.3
         </div>
 
         <div class="rai-engine-release" id="raiEngineRelease"></div>
@@ -351,7 +393,7 @@
                             </p>
 
                             <small>
-                                SYSTEM READY // RAI VERSION 2.4.1
+                                SYSTEM READY // RAI VERSION 2.4.3
                             </small>
                         </div>
                     </div>
@@ -468,7 +510,7 @@
     </main>
 
     <footer>
-        <span>RAI v2.4.1</span>
+        <span>RAI v2.4.3</span>
         <span>REPUBLIK OF AI</span>
         <span>NEURAL SYSTEM ONLINE</span>
     </footer>
@@ -502,7 +544,7 @@
 
 </div>
 
-<script src="script.js?v=20261102-rai242"></script>
+<script src="script.js?v=20261113-engine243"></script>
 
     <script src="notification.js"></script>
 </body>

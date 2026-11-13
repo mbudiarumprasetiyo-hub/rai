@@ -8,6 +8,26 @@ let typingTimer = null;
 window.addEventListener("error", function(e) { document.body.innerHTML += "<pre style=\"position:fixed;top:0;left:0;right:0;background:#000;color:#ff3333;padding:20px;z-index:999999;font-size:14px;white-space:pre-wrap\">RAI JS ERROR:\n" + e.message + "\nLINE: " + e.lineno + "\nFILE: " + e.filename + "</pre>"; });
 
 const chat = document.getElementById("chat");
+
+function raiScrollToBottom(force = false) {
+    if (!chat) return;
+
+    const distance =
+        chat.scrollHeight - chat.clientHeight - chat.scrollTop;
+
+    // Jangan paksa scroll jika pengguna sedang membaca pesan lama.
+    if (!force && distance > 180) return;
+
+    const scroll = () => {
+        chat.scrollTop = chat.scrollHeight;
+    };
+
+    requestAnimationFrame(() => {
+        scroll();
+        requestAnimationFrame(scroll);
+    });
+}
+
 const input = document.getElementById("message");
 const typing = document.getElementById("typing");
 
@@ -333,6 +353,73 @@ function removeFile() {
         preview.hidden = true;
         preview.innerHTML = "";
     }
+}
+
+
+const RAI_MEMORY_V2_KEY = "RAI_MEMORY_V2";
+
+function getRAIMemory() {
+    try {
+        const data = JSON.parse(localStorage.getItem(RAI_MEMORY_V2_KEY) || "[]");
+        return Array.isArray(data)
+            ? data.filter(x => typeof x === "string").slice(-40)
+            : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveRAIMemory(data) {
+    try {
+        localStorage.setItem(RAI_MEMORY_V2_KEY, JSON.stringify(data.slice(-40)));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function handleRAIMemoryCommand(message) {
+    const text = String(message || "").trim();
+
+    if (/^ingat\\s*:/i.test(text)) {
+        const note = text.replace(/^ingat\\s*:/i, "").trim();
+        if (!note) return "Format: ingat: isi memori";
+        if (note.length > 300) return "Memori maksimal 300 karakter.";
+
+        const memory = getRAIMemory();
+        if (memory.some(x => x.toLowerCase() === note.toLowerCase()))
+            return "Memori sudah tersimpan.";
+
+        memory.push(note);
+        return saveRAIMemory(memory)
+            ? "Memori berhasil disimpan: " + note
+            : "Gagal menyimpan memori.";
+    }
+
+    if (/^lupakan\\s*:/i.test(text)) {
+        const query = text.replace(/^lupakan\\s*:/i, "").trim();
+        if (!query) return "Format: lupakan: kata yang ingin dihapus";
+
+        const memory = getRAIMemory();
+        const next = memory.filter(x => !x.toLowerCase().includes(query.toLowerCase()));
+        const count = memory.length - next.length;
+        saveRAIMemory(next);
+        return count ? `Memori dihapus: ${count}` : "Memori tidak ditemukan.";
+    }
+
+    if (/^memori$/i.test(text)) {
+        const memory = getRAIMemory();
+        return memory.length
+            ? "Memori RAI:\\n" + memory.map((x, i) => `${i + 1}. ${x}`).join("\\n")
+            : "Memori RAI masih kosong.";
+    }
+
+    if (/^hapus semua memori$/i.test(text)) {
+        saveRAIMemory([]);
+        return "Semua memori lokal RAI dihapus.";
+    }
+
+    return null;
 }
 
 function getMemoryContext() {
@@ -1042,6 +1129,92 @@ function cleanRAIText(text) {
 }
 
 
+
+function renderRAIMarkdown(rawText, container) {
+    const lines = String(rawText || "").split(/\r?\n/);
+    container.replaceChildren();
+    container.classList.add("rai-markdown-content");
+
+    function cells(line) {
+        let value = line.trim();
+        if (value.startsWith("|")) value = value.slice(1);
+        if (value.endsWith("|")) value = value.slice(0, -1);
+
+        return value.split("|").map(cell =>
+            cleanRAIText(cell.trim())
+        );
+    }
+
+    function isSeparator(line) {
+        return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+    }
+
+    let i = 0;
+
+    while (i < lines.length) {
+        if (
+            lines[i].includes("|") &&
+            i + 1 < lines.length &&
+            isSeparator(lines[i + 1])
+        ) {
+            const headers = cells(lines[i]);
+            const table = document.createElement("table");
+            table.className = "rai-markdown-table";
+
+            const thead = document.createElement("thead");
+            const headerRow = document.createElement("tr");
+
+            headers.forEach(text => {
+                const th = document.createElement("th");
+                th.textContent = text;
+                headerRow.appendChild(th);
+            });
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement("tbody");
+            i += 2;
+
+            while (
+                i < lines.length &&
+                lines[i].includes("|") &&
+                lines[i].trim()
+            ) {
+                const row = cells(lines[i]);
+                const tr = document.createElement("tr");
+
+                headers.forEach((_, index) => {
+                    const td = document.createElement("td");
+                    td.textContent = row[index] || "";
+                    tr.appendChild(td);
+                });
+
+                tbody.appendChild(tr);
+                i++;
+            }
+
+            table.appendChild(tbody);
+
+            const wrapper = document.createElement("div");
+            wrapper.className = "rai-table-wrapper";
+            wrapper.appendChild(table);
+            container.appendChild(wrapper);
+            continue;
+        }
+
+        const line = cleanRAIText(lines[i]);
+
+        if (line.trim()) {
+            const paragraph = document.createElement("p");
+            paragraph.textContent = line;
+            container.appendChild(paragraph);
+        }
+
+        i++;
+    }
+}
+
 function renderAutoCode(text, container) {
 
     /*
@@ -1270,7 +1443,7 @@ function addMessage(message, type, image = null) {
 
             wrapper.remove();
 
-            chat.scrollTop = chat.scrollHeight;
+            raiScrollToBottom(true);
         };
 
         bubble.appendChild(editBtn);
@@ -1382,7 +1555,7 @@ function addMessage(message, type, image = null) {
 
     chat.appendChild(wrapper);
 
-    chat.scrollTop = chat.scrollHeight;
+    raiScrollToBottom(true);
 
     return paragraph;
 }
@@ -1972,6 +2145,303 @@ function showGoogleLoginPrompt() {
     overlay.id = "raiGoogleLoginPrompt";
 
     overlay.innerHTML = `
+        <style>
+        #raiGoogleLoginPrompt {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 5, 4, .88);
+            backdrop-filter: blur(7px);
+        }
+
+        #raiGoogleLoginPrompt .rai-access-panel {
+            position: relative;
+            z-index: 2;
+            width: min(100%, 420px);
+            max-height: calc(100dvh - 36px);
+            overflow-y: auto;
+            box-sizing: border-box;
+            padding: 22px;
+            border: 1px solid rgba(0, 255, 150, .35);
+            border-radius: 16px;
+            background:
+                radial-gradient(ellipse at top, rgba(0,255,130,.09), transparent 55%),
+                #050b0a;
+            color: #c8f8e5;
+            box-shadow: 0 0 35px rgba(0,255,130,.12),
+                        inset 0 0 22px rgba(0,255,130,.025);
+            animation: raiSecurityEnter .35s ease-out both;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-scanline {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            pointer-events: none;
+            background: linear-gradient(90deg, transparent, #00ff9d, transparent);
+            box-shadow: 0 0 12px #00ff9d;
+            animation: raiSecurityScan 5s linear infinite;
+            opacity: .45;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            color: #00ff9d;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(0,255,150,.15);
+        }
+
+        #raiGoogleLoginPrompt .rai-access-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #00ff9d;
+            box-shadow: 0 0 10px #00ff9d;
+            animation: raiSecurityBlink 1.8s infinite;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-code {
+            color: #8aa99b;
+            font-size: 10px;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-icon {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: 22px auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-icon::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border: 1px solid rgba(0,255,150,.25);
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(0,255,150,.08);
+            animation: raiSecurityRing 12s linear infinite;
+        }
+
+        #raiGoogleLoginPrompt .rai-security-dragon {
+            display: block;
+            width: 118px;
+            height: 118px;
+            object-fit: contain;
+            border-radius: 10px;
+            background: #000;
+            mix-blend-mode: screen;
+            filter: drop-shadow(0 0 8px rgba(0,255,150,.35));
+            animation: raiDragonPulse 3.5s ease-in-out infinite;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-icon::after {
+            content: "IMAGE AUTHENTICATION";
+            position: absolute;
+            bottom: -17px;
+            font-size: 8px;
+            letter-spacing: 2px;
+            color: #00ff9d;
+            white-space: nowrap;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-title {
+            margin-top: 25px;
+            text-align: center;
+            font-size: clamp(19px, 5vw, 25px);
+            letter-spacing: 2px;
+            color: #e0fff1;
+            text-shadow: 0 0 12px rgba(0,255,150,.2);
+        }
+
+        #raiGoogleLoginPrompt .rai-access-subtitle {
+            margin-top: 6px;
+            text-align: center;
+            font-size: 11px;
+            letter-spacing: 3px;
+            color: #00ff9d;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-line {
+            height: 1px;
+            margin: 18px 0;
+            background: linear-gradient(90deg, transparent, #00ff9d55, transparent);
+        }
+
+        #raiGoogleLoginPrompt .rai-access-message {
+            font-size: 13px;
+            line-height: 1.7;
+            color: #a9c9bb;
+            text-align: center;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-message strong {
+            color: #00ff9d;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-status {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin: 18px 0;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-status > div {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding: 11px;
+            border: 1px solid rgba(0,255,150,.15);
+            border-radius: 8px;
+            background: rgba(0,255,150,.025);
+        }
+
+        #raiGoogleLoginPrompt .rai-access-status span {
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: #76988a;
+        }
+
+        #raiGoogleLoginPrompt .rai-access-status b {
+            font-size: 11px;
+            color: #ff697d;
+        }
+
+        #raiGoogleLoginPrompt button {
+            width: 100%;
+            min-height: 48px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            font-family: inherit;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        #raiGoogleLoginPrompt .rai-google-access {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            color: #001b10;
+            background: #00f59b;
+            border: 1px solid #00ff9d;
+            box-shadow: 0 0 18px rgba(0,255,150,.12);
+            transition: transform .2s, box-shadow .2s;
+        }
+
+        #raiGoogleLoginPrompt .rai-google-access:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 24px rgba(0,255,150,.3);
+        }
+
+        #raiGoogleLoginPrompt .rai-google-text {
+            text-align: left;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        #raiGoogleLoginPrompt .rai-google-text small {
+            display: block;
+            margin-top: 4px;
+            font-size: 9px;
+            letter-spacing: 1.5px;
+        }
+
+        #raiGoogleLoginPrompt .rai-arrow {
+            font-size: 20px;
+        }
+
+        #raiGoogleLoginPrompt .rai-later-access {
+            margin-top: 10px;
+            color: #00ff9d;
+            background: rgba(0,255,150,.035);
+            border: 1px solid rgba(0,255,150,.25);
+            font-size: 11px;
+            transition: background .2s;
+        }
+
+        #raiGoogleLoginPrompt .rai-later-access:hover {
+            background: rgba(0,255,150,.1);
+        }
+
+        #raiGoogleLoginPrompt .rai-access-footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: #547568;
+        }
+
+        @keyframes raiSecurityEnter {
+            from { opacity: 0; transform: translateY(12px) scale(.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes raiSecurityScan {
+            from { transform: translateY(0); }
+            to { transform: translateY(420px); }
+        }
+
+        @keyframes raiDragonPulse {
+            0%, 100% { filter: drop-shadow(0 0 6px rgba(0,255,150,.25)); }
+            50% { filter: drop-shadow(0 0 15px rgba(0,255,150,.6)); }
+        }
+
+        @keyframes raiSecurityRing {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes raiSecurityBlink {
+            50% { opacity: .35; }
+        }
+
+        @media (max-width: 420px) {
+            #raiGoogleLoginPrompt .rai-access-panel {
+                padding: 17px;
+                border-radius: 12px;
+            }
+
+            #raiGoogleLoginPrompt .rai-access-icon {
+                width: 120px;
+                height: 120px;
+            }
+
+            #raiGoogleLoginPrompt .rai-security-dragon {
+                width: 100px;
+                height: 100px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #raiGoogleLoginPrompt * {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+        </style>
+
         <div class="rai-access-backdrop"></div>
         <div class="rai-access-panel">
             <div class="rai-access-scanline"></div>
@@ -1981,10 +2451,9 @@ function showGoogleLoginPrompt() {
                 <span class="rai-access-code">AUTH://LOCKED</span>
             </div>
             <div class="rai-access-icon">
-                <div class="rai-lock">
-                    <div class="rai-lock-shackle"></div>
-                    <div class="rai-lock-body"><span></span></div>
-                </div>
+                <img class="rai-security-dragon"
+                     src="/rai-logo.png"
+                     alt="RAI Dragon Logo">
             </div>
             <div class="rai-access-title">ACCESS RESTRICTED</div>
             <div class="rai-access-subtitle">FITUR TERKUNCI</div>
@@ -2315,6 +2784,130 @@ async function generateImageFromChat(
     }
 }
 
+
+// ========================================
+// RAI DOCUMENT GENERATION ROUTER
+// ========================================
+
+function detectRAIDocumentRequest(text) {
+    const value = String(text || "").toLowerCase();
+
+    const hasCreateIntent =
+        /\b(buatkan|buat|bikinkan|bikin|hasilkan|susun|generate|tolong|create)\b/.test(value);
+
+    if (!hasCreateIntent) return null;
+
+    const isPpt =
+        /\b(ppt|pptx|powerpoint|power point|slide|presentasi)\b/.test(value);
+
+    const isPdf =
+        /\b(pdf)\b/.test(value);
+
+    const isDocx =
+        /\b(word|docx|laporan|makalah|dokumen)\b/.test(value);
+
+    if (isPpt) return "pptx";
+    if (isPdf) return "pdf";
+    if (isDocx) return "docx";
+
+    return null;
+}
+
+async function generateRAIDocument(prompt, format) {
+    const sendBtn = document.getElementById("sendBtn");
+
+    if (sendBtn) {
+        sendBtn.textContent = "□";
+        sendBtn.classList.add("stop-mode");
+        sendBtn.title = "STOP RAI";
+        sendBtn.onclick = stopRAI;
+    }
+
+    addMessage(prompt, "user");
+    saveUserMessage(prompt);
+    input.value = "";
+
+    typing.style.display = "block";
+    currentController = new AbortController();
+
+    try {
+        const response = await fetch("/api/generate-document", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                prompt,
+                format,
+                engine: raiSettings?.engine || "rexa"
+            }),
+            signal: currentController.signal
+        });
+
+        if (!response.ok) {
+            let message = "RAI gagal membuat file.";
+            try {
+                const data = await response.json();
+                message = data.error || message;
+            } catch {}
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="?([^";]+)"?/i);
+        const filename = match
+            ? match[1]
+            : (
+                format === "pptx"
+                    ? "RAI-Presentasi.pptx"
+                    : format === "pdf"
+                        ? "RAI-Laporan.pdf"
+                        : "RAI-Laporan.docx"
+            );
+
+        const url = URL.createObjectURL(blob);
+        const paragraph = addMessage("", "ai");
+        paragraph.textContent = "Dokumen berhasil dibuat: ";
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.textContent = "DOWNLOAD " + filename;
+        link.className = "rai-document-download";
+        link.style.display = "inline-block";
+        link.style.margin = "8px";
+        link.style.padding = "10px 14px";
+        link.style.border = "1px solid var(--rai-primary)";
+        link.style.borderRadius = "8px";
+        link.style.color = "var(--rai-primary)";
+        link.style.fontWeight = "bold";
+
+        paragraph.appendChild(link);
+
+        link.addEventListener("click", () => {
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }, { once: true });
+
+        saveAIMessage("Dokumen berhasil dibuat: " + filename);
+
+    } catch (error) {
+        if (error.name !== "AbortError") {
+            console.error("RAI DOCUMENT FRONTEND ERROR:", error);
+            addMessage("Gagal membuat dokumen: " + error.message, "ai");
+        }
+    } finally {
+        typing.style.display = "none";
+        currentController = null;
+
+        if (sendBtn) {
+            sendBtn.textContent = "➤";
+            sendBtn.classList.remove("stop-mode");
+            sendBtn.title = "KIRIM RAI";
+            sendBtn.onclick = sendMessage;
+        }
+    }
+}
+
+
 async function sendMessage() {
 
     console.log("RAI SEND FUNCTION CALLED");
@@ -2395,6 +2988,23 @@ async function sendMessage() {
             : "");
 
     if (!finalMessage) return;
+
+    // RAI MEMORY V2 COMMAND HANDLER
+    if (!imageToSend && !fileSnapshot) {
+        const memoryResult = handleRAIMemoryCommand(finalMessage);
+
+        if (memoryResult !== null) {
+            addMessage(finalMessage, "user");
+            saveUserMessage(finalMessage);
+
+            addMessage(memoryResult, "ai");
+            saveAIMessage(memoryResult);
+
+            input.value = "";
+            return;
+        }
+    }
+
 
     stopRequested = false;
 
@@ -2506,6 +3116,17 @@ async function sendMessage() {
         return;
     }
 
+
+    // RAI DOCUMENT GENERATION ROUTER
+    if (!imageToSend && !fileSnapshot) {
+        const documentFormat = detectRAIDocumentRequest(finalMessage);
+
+        if (documentFormat) {
+            await generateRAIDocument(finalMessage, documentFormat);
+            return;
+        }
+    }
+
     stopRequested = false;
 
     const sendBtn =
@@ -2577,10 +3198,15 @@ async function sendMessage() {
                 image: imageToSend || null,
                 file: fileSnapshot || null,
                 history: getMemoryContext(),
+                memory: getRAIMemory(),
                 personality:
                     (typeof raiSettings !== "undefined"
                         ? raiSettings.personality
-                        : "normal")
+                        : "normal"),
+                engine:
+                    (typeof raiSettings !== "undefined"
+                        ? raiSettings.engine
+                        : "rexa")
             });
 
             console.log(
@@ -2787,10 +3413,7 @@ async function sendMessage() {
 
             } else {
 
-                paragraph.textContent =
-                    cleanRAIText(
-                        receivedText
-                    );
+                renderRAIMarkdown(receivedText, paragraph);
             }
         }
 
@@ -2807,6 +3430,9 @@ async function sendMessage() {
             receivedText &&
             !stopRequested
         ) {
+
+            // Scroll setelah render final selesai
+            raiScrollToBottom(true);
 
             saveAIMessage(
                 receivedText
@@ -3921,6 +4547,7 @@ if (historySearch) {
 const RAI_SETTINGS_KEY = "RAI_SETTINGS_V1";
 
 let raiSettings = {
+    engine: "rexa",
     theme: "green",
     personality: "normal",
     fontSize: 100,
@@ -3966,6 +4593,20 @@ function toggleRAISettings() {
     panel.hidden = !panel.hidden;
 }
 
+function selectRAIEngine(engineName) {
+    const allowed = ["rexa", "venum", "noxes"];
+    if (!allowed.includes(engineName)) return;
+
+    const select = document.getElementById("raiEngineSelect");
+    if (!select) return;
+
+    raiSettings.engine = engineName;
+    select.value = engineName;
+
+    saveRAISettings();
+    applyRAISettings();
+}
+
 function applyRAISettings() {
 
     document.documentElement.dataset.raiTheme =
@@ -3981,6 +4622,9 @@ function applyRAISettings() {
         !raiSettings.animations
     );
 
+    const engine =
+        document.getElementById("raiEngineSelect");
+
     const theme =
         document.getElementById("raiThemeSelect");
 
@@ -3995,6 +4639,15 @@ function applyRAISettings() {
 
     const sound =
         document.getElementById("raiSoundToggle");
+
+    if (engine)
+        engine.value = raiSettings.engine || "rexa";
+
+    document.querySelectorAll("[data-rai-engine]").forEach(button => {
+        const active = button.dataset.raiEngine === (raiSettings.engine || "rexa");
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+    });
 
     if (theme)
         theme.value = raiSettings.theme;
@@ -4071,6 +4724,7 @@ function toggleRAISound() {
 function resetRAISettings() {
 
     raiSettings = {
+        engine: "rexa",
         theme: "green",
         personality: "normal",
         fontSize: 100,
@@ -4087,11 +4741,31 @@ document.addEventListener(
     "DOMContentLoaded",
     () => {
 
+        const engine =
+            document.getElementById("raiEngineSelect");
+
         const theme =
             document.getElementById("raiThemeSelect");
 
         const personality =
             document.getElementById("raiPersonalitySelect");
+
+        if (engine) {
+            engine.addEventListener(
+                "change",
+                () => {
+                    raiSettings.engine = engine.value;
+                    saveRAISettings();
+                    applyRAISettings();
+                }
+            );
+        }
+
+        document.querySelectorAll("[data-rai-engine]").forEach(button => {
+            button.addEventListener("click", () => {
+                selectRAIEngine(button.dataset.raiEngine);
+            });
+        });
 
         if (theme) {
             theme.addEventListener(
@@ -4855,7 +5529,7 @@ window.playRAISound = function(type = "click") {
 // RAI ENGINE UPDATER V1
 // ========================================
 
-const RAI_ENGINE_VERSION = "2.4.1";
+const RAI_ENGINE_VERSION = "2.4.3";
 
 function raiCompareVersions(a, b) {
     const aa = String(a).split(".").map(Number);
@@ -4967,13 +5641,70 @@ async function installRAIEngineUpdate() {
             );
         }
 
-        status.textContent = "UPDATE INSTALLED // RESTART REQUIRED";
+        const installedVersion = data.installedVersion;
+
+        if (!installedVersion || !data.restartScheduled) {
+            throw new Error(
+                "Update terpasang, tetapi konfirmasi restart otomatis tidak tersedia."
+            );
+        }
+
+        status.textContent = "UPDATE INSTALLED // SERVER RESTARTING";
         release.textContent =
             (data.output || "Pembaruan berhasil dipasang.") +
-            "\n\nHentikan server RAI, kemudian jalankan npm start kembali.";
+            "\n\nRAI sedang memulai ulang server secara otomatis.";
 
-        button.textContent = "UPDATE COMPLETED";
+        button.textContent = "RESTARTING...";
         button.disabled = true;
+
+        // Tunggu server baru aktif dan melaporkan versi target.
+        for (let attempt = 0; attempt < 30; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            try {
+                const checkResponse = await fetch(
+                    "/api/engine-update?t=" + Date.now(),
+                    {
+                        cache: "no-store",
+                        credentials: "same-origin"
+                    }
+                );
+
+                if (!checkResponse.ok) continue;
+
+                const checkData = await checkResponse.json();
+
+                if (
+                    checkData.success &&
+                    raiCompareVersions(
+                        checkData.currentVersion,
+                        installedVersion
+                    ) >= 0
+                ) {
+                    version.textContent = checkData.currentVersion;
+                    status.textContent =
+                        "UPDATE SUCCESS // " + checkData.currentVersion;
+                    release.textContent =
+                        "RAI berhasil online kembali menggunakan engine terbaru.";
+
+                    button.textContent = "UPDATE COMPLETED";
+                    button.disabled = true;
+
+                    setTimeout(() => window.location.reload(), 1200);
+                    return;
+                }
+            } catch (connectionError) {
+                // Server sedang berhenti atau belum siap.
+            }
+        }
+
+        status.textContent = "RESTART PENDING";
+        release.textContent =
+            "Server belum terdeteksi setelah 60 detik. Periksa rai-server.log di Termux.";
+
+        button.disabled = false;
+        button.textContent = "RETRY CONNECTION";
+        button.onclick = () => window.location.reload();
 
     } catch (error) {
         status.textContent = "INSTALLATION FAILED";

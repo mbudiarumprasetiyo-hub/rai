@@ -4384,3 +4384,540 @@ html.rai-no-animations *::after {
         font-size: 11px;
     }
 }
+
+/* =========================================
+   RAI TERMINAL V3 — CYBER MINIMAL
+   Chat terminal only
+   ========================================= */
+
+html[data-rai-theme] .chat {
+    padding: 16px 14px 20px !important;
+    max-height: none;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--rai-primary-rgb), .25) transparent;
+}
+
+html[data-rai-theme] .message {
+    gap: 9px;
+    margin-bottom: 18px;
+    align-items: flex-start;
+}
+
+html[data-rai-theme] .message.user {
+    margin-left: 12%;
+}
+
+html[data-rai-theme] .message.ai {
+    margin-right: 4%;
+}
+
+html[data-rai-theme] .avatar {
+    width: 29px;
+    height: 29px;
+    min-width: 29px;
+    border-radius: 9px;
+    font-size: 8px;
+    font-weight: 700;
+    background: rgba(var(--rai-primary-rgb), .055);
+    box-shadow: 0 0 12px rgba(var(--rai-primary-rgb), .07);
+}
+
+html[data-rai-theme] .user .avatar {
+    background: var(--rai-primary);
+    color: #00130b;
+    border-radius: 9px;
+}
+
+html[data-rai-theme] .bubble {
+    max-width: min(88%, 680px);
+    padding: 11px 13px;
+    border-radius: 4px 13px 13px 13px;
+    border: 1px solid rgba(var(--rai-primary-rgb), .12);
+    background: rgba(var(--rai-primary-rgb), .025);
+    box-shadow: none;
+    overflow-wrap: anywhere;
+}
+
+html[data-rai-theme] .message.user .bubble {
+    border-radius: 13px 4px 13px 13px;
+    background: rgba(var(--rai-primary-rgb), .075);
+    border-color: rgba(var(--rai-primary-rgb), .22);
+}
+
+html[data-rai-theme] .message-name {
+    font-size: 9px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    opacity: .8;
+    margin-bottom: 6px;
+}
+
+html[data-rai-theme] .chat .message .bubble p,
+html[data-rai-theme] .message-content > p {
+    font-size: 13px !important;
+    line-height: 1.68 !important;
+    color: var(--text, #d8fff0) !important;
+    overflow-wrap: anywhere;
+}
+
+html[data-rai-theme] .message.ai .bubble {
+    background: transparent;
+    border-color: rgba(var(--rai-primary-rgb), .09);
+}
+
+html[data-rai-theme] .bubble small {
+    opacity: .65;
+    font-size: 9px;
+}
+
+html[data-rai-theme] .message-action {
+    border-radius: 7px;
+    padding: 5px 8px;
+    font-size: 9px;
+    background: rgba(var(--rai-primary-rgb), .035);
+    border-color: rgba(var(--rai-primary-rgb), .12);
+    transition: background .18s ease, border-color .18s ease;
+}
+
+html[data-rai-theme] .message-action:hover {
+    background: rgba(var(--rai-primary-rgb), .1);
+    border-color: rgba(var(--rai-primary-rgb), .35);
+}
+
+html[data-rai-theme] .chat::-webkit-scrollbar {
+    width: 4px;
+}
+
+html[data-rai-theme] .chat::-webkit-scrollbar-thumb {
+    background: rgba(var(--rai-primary-rgb), .2);
+    border-radius: 10px;
+}
+
+@media (max-width: 600px) {
+    html[data-rai-theme] .chat {
+        padding: 12px 9px 16px !important;
+    }
+
+    html[data-rai-theme] .message.user {
+        margin-left: 5%;
+    }
+
+    html[data-rai-theme] .message.ai {
+        margin-right: 1%;
+    }
+
+    html[data-rai-theme] .bubble {
+        max-width: 92%;
+        padding: 10px 11px;
+    }
+
+    html[data-rai-theme] .avatar {
+        width: 26px;
+        height: 26px;
+        min-width: 26px;
+        font-size: 7px;
+    }
+}
+
+/* END RAI TERMINAL V3 */
+
+/* =========================================
+   RAI COMPOSER V4 — ALL CONTROLS IN ONE ROW
+   ========================================= */
+
+html[data-rai-theme] .input-area {
+    display: grid !important;
+    grid-template-columns:
+        34px 34px 34px 34px
+        minmax(0, 1fr) 36px 58px !important;
+    grid-template-rows: 44px auto !important;
+    align-items: center !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+}
+
+/* Gallery, file, camera, GPS */
+html[data-rai-theme] .input-area #galleryBtn {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+}
+
+html[data-rai-theme] .input-area #fileBtn {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+}
+
+html[data-rai-theme] .input-area #imageBtn {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+}
+
+html[data-rai-theme] .input-area #trackImageBtn {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+}
+
+/* All utility buttons */
+html[data-rai-theme] .input-area #galleryBtn,
+html[data-rai-theme] .input-area #fileBtn,
+html[data-rai-theme] .input-area #imageBtn,
+html[data-rai-theme] .input-area #trackImageBtn {
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    position: relative !important;
+}
+
+/* Text input */
+html[data-rai-theme] .input-area textarea {
+    grid-column: 5 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    box-sizing: border-box !important;
+    padding: 8px !important;
+    resize: none !important;
+}
+
+/* Hide decorative prefix and image mode label */
+html[data-rai-theme] .input-area .input-prefix,
+html[data-rai-theme] .input-area #imageMode {
+    display: none !important;
+}
+
+/* Microphone */
+html[data-rai-theme] .input-area #raiMicButton {
+    grid-column: 6 !important;
+    grid-row: 1 !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    max-width: 36px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Send */
+html[data-rai-theme] .input-area #sendBtn {
+    grid-column: 7 !important;
+    grid-row: 1 !important;
+    width: 58px !important;
+    min-width: 58px !important;
+    max-width: 58px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Image preview occupies its own row only when populated */
+html[data-rai-theme] .input-area #imagePreview:empty {
+    display: none !important;
+}
+
+html[data-rai-theme] .input-area #imagePreview:not(:empty) {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+/* Small-screen safety */
+@media (max-width: 360px) {
+    html[data-rai-theme] .input-area {
+        grid-template-columns:
+            30px 30px 30px 30px
+            minmax(0, 1fr) 32px 52px !important;
+        gap: 3px !important;
+    }
+
+    html[data-rai-theme] .input-area #galleryBtn,
+    html[data-rai-theme] .input-area #fileBtn,
+    html[data-rai-theme] .input-area #imageBtn,
+    html[data-rai-theme] .input-area #trackImageBtn {
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+    }
+
+    html[data-rai-theme] .input-area #raiMicButton {
+        width: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+    }
+
+    html[data-rai-theme] .input-area #sendBtn {
+        width: 52px !important;
+        min-width: 52px !important;
+        max-width: 52px !important;
+        font-size: 10px !important;
+    }
+}
+
+/* END RAI COMPOSER V4 */
+
+/* RAI COMPOSER V5 — COMPACT */
+@media (max-width: 600px) {
+    html[data-rai-theme] .input-area {
+        width: calc(100% - 20px) !important;
+        max-width: 540px !important;
+        margin: 0 auto !important;
+
+        grid-template-columns:
+            30px 30px 30px 30px
+            minmax(0, 1fr) 32px 50px !important;
+
+        grid-template-rows: 40px !important;
+        gap: 3px !important;
+    }
+
+    html[data-rai-theme] .input-area #galleryBtn,
+    html[data-rai-theme] .input-area #fileBtn,
+    html[data-rai-theme] .input-area #imageBtn,
+    html[data-rai-theme] .input-area #trackImageBtn {
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        height: 36px !important;
+        min-height: 36px !important;
+        font-size: 15px !important;
+    }
+
+    html[data-rai-theme] .input-area textarea {
+        height: 40px !important;
+        min-height: 40px !important;
+        max-height: 40px !important;
+        font-size: 12px !important;
+        padding: 6px !important;
+    }
+
+    html[data-rai-theme] .input-area #raiMicButton {
+        width: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        font-size: 15px !important;
+    }
+
+    html[data-rai-theme] .input-area #sendBtn {
+        width: 50px !important;
+        min-width: 50px !important;
+        max-width: 50px !important;
+        height: 40px !important;
+        min-height: 40px !important;
+        font-size: 10px !important;
+    }
+}
+
+/* END COMPACT COMPOSER */
+
+/* RAI AUTO SCROLL FIX */
+html[data-rai-theme] .chat {
+    scroll-behavior: auto !important;
+}
+
+/* RAI CHAT SCROLL FIX — CONSTRAIN FLEX CONTAINER */
+html[data-rai-theme] .chat-panel {
+    height: 75vh !important;
+    min-height: 550px !important;
+    max-height: 850px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+}
+
+html[data-rai-theme] #chat.chat {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-y: contain;
+    scroll-behavior: auto !important;
+}
+
+/* RAI MARKDOWN TABLE FIX */
+.rai-markdown-content {
+    overflow-wrap: anywhere;
+}
+
+.rai-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid rgba(var(--rai-primary-rgb), 0.3);
+    border-radius: 8px;
+}
+
+.rai-markdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9em;
+}
+
+.rai-markdown-table th,
+.rai-markdown-table td {
+    padding: 10px;
+    border: 1px solid rgba(var(--rai-primary-rgb), 0.2);
+    text-align: left;
+    vertical-align: top;
+    min-width: 70px;
+}
+
+.rai-markdown-table th {
+    background: rgba(var(--rai-primary-rgb), 0.12);
+    color: var(--rai-primary);
+    font-weight: bold;
+}
+
+.rai-markdown-table tr:nth-child(even) {
+    background: rgba(var(--rai-primary-rgb), 0.04);
+}
+/* END RAI MARKDOWN TABLE FIX */
+
+/* RAI 2.4.3 — ENGINE SELECTOR */
+.rai-engine-section {
+    margin: 12px 0 16px;
+    padding: 13px;
+    border: 1px solid rgba(var(--rai-primary-rgb, 0, 255, 170), .24);
+    border-radius: 13px;
+    background: rgba(0, 0, 0, .16);
+}
+
+.rai-engine-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.rai-engine-heading span {
+    color: var(--rai-primary, #00e6a0);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+}
+
+.rai-engine-heading small {
+    color: var(--rai-muted, #8b9b99);
+    font-size: 8px;
+    letter-spacing: .8px;
+}
+
+.rai-engine-cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+}
+
+.rai-engine-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid rgba(var(--rai-primary-rgb, 0, 255, 170), .18);
+    border-radius: 10px;
+    background: rgba(10, 20, 20, .72);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.rai-engine-card:active {
+    transform: scale(.985);
+}
+
+.rai-engine-card.active {
+    border-color: var(--rai-primary, #00e6a0);
+    background: rgba(var(--rai-primary-rgb, 0, 255, 170), .11);
+    box-shadow: inset 3px 0 0 var(--rai-primary, #00e6a0);
+}
+
+.rai-engine-card:focus-visible {
+    outline: 2px solid var(--rai-primary, #00e6a0);
+    outline-offset: 3px;
+}
+
+.rai-engine-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.rai-engine-card-top strong {
+    color: var(--rai-primary, #00e6a0);
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 1.2px;
+}
+
+.rai-engine-card-top small {
+    color: var(--rai-muted, #8b9b99);
+    font-size: 9px;
+    letter-spacing: .8px;
+}
+
+.rai-engine-card-desc {
+    color: var(--rai-text, #d7e4e0);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.rai-engine-card-model {
+    align-self: flex-start;
+    padding: 4px 7px;
+    border: 1px solid rgba(var(--rai-primary-rgb, 0, 255, 170), .2);
+    border-radius: 5px;
+    color: var(--rai-primary, #00e6a0);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
+@media (max-width: 380px) {
+    .rai-engine-section {
+        padding: 10px;
+    }
+
+    .rai-engine-heading small {
+        font-size: 7px;
+    }
+
+    .rai-engine-card {
+        padding: 10px;
+    }
+}
+
+/* END RAI 2.4.3 — ENGINE SELECTOR */
